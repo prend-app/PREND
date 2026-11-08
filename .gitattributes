@@ -1,0 +1,10 @@
+# 줄 끝: gradlew는 macOS·Linux에서 돌도록 LF, 배치 파일은 CRLF
+* text=auto
+gradlew text eol=lf
+*.bat text eol=crlf
+*.apk binary
+*.jar binary
+*.onnx binary
+*.ogg binary
+*.wav binary
+*.otf binary

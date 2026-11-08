@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Pleos Vehicle SDK: 읽기 -->
+    <uses-permission android:name="pleos.car.permission.CAR_CLIMATE" />
+    <uses-permission android:name="pleos.car.permission.CAR_SEATS" />
+    <uses-permission android:name="pleos.car.permission.CAR_LIGHTS" />
+    <uses-permission android:name="pleos.car.permission.CAR_WINDOWS" />
+    <uses-permission android:name="pleos.car.permission.CAR_DOORS" />
+    <uses-permission android:name="pleos.car.permission.CAR_DRIVE" />
+    <uses-permission android:name="pleos.car.permission.CAR_POWERTRAIN" />
+    <uses-permission android:name="pleos.car.permission.CAR_INFO" />
+    <!-- 시험 51: 에어백 전개 여부(급할 땐 안내원) -->
+    <uses-permission android:name="pleos.car.permission.CAR_SAFETY" />
+    <!-- Pleos Vehicle SDK: 제어(잠·깨움, 바람 비켜 섬. 제품은 앱마켓 사전 협의 대상) -->
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_CLIMATE" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_LIGHTS" />
+    <uses-permission android:name="pleos.car.permission.CONTROL_CAR_SEATS" />
+    <!-- Pleos NaviHelper: 위치·경유지 읽기, 경로·경유지 넣기, 내비 화면 띄우기(시험 46) -->
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE" />
+    <uses-permission android:name="pleos.car.permission.NAVI_ROUTE_SEARCH" />
+    <uses-permission android:name="pleos.car.permission.NAVI_CUSTOM_MAP" />
+    <!-- Pleos STT: 버튼을 누른 뒤·물은 뒤 몇 초의 짧은 말(시험 9) -->
+    <uses-permission android:name="pleos.car.permission.STT_SERVICE" />
+    <!-- AAOS 표준 속성: 차속(런타임), 기어, 바깥 기온·야간 모드(설치 때 허용) -->
+    <uses-permission android:name="android.car.permission.CAR_SPEED" />
+    <uses-permission android:name="android.car.permission.CAR_POWERTRAIN" />
+    <uses-permission android:name="android.car.permission.CAR_EXTERIOR_ENVIRONMENT" />
+    <uses-permission android:name="android.car.permission.CAR_EXTERIOR_LIGHTS" />
+    <uses-permission android:name="android.car.permission.CAR_INFO" />
+    <!-- 말소리 유무(내용은 듣지 않는다) -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 중계 서버: 같이 고르기(네이버 지역·블로그), 급할 때 응급실·달빛어린이병원(국립중앙의료원) -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 시동(부팅)과 함께 깨어나 운행 내내 챙긴다(시험 52) -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+
+    <!-- 다른 음악 앱의 이름을 화면에 쓰려면 그 앱이 보여야 한다(음악 앱은 미디어 브라우저 서비스를 연다) -->
+    <queries>
+        <intent>
+            <action android:name="android.media.browse.MediaBrowserService" />
+        </intent>
+    </queries>
+
+    <!-- 아이콘: 어두운 바탕에 P R E N D, P·R을 기어 불빛 캡슐로 켠 적응형 아이콘(res/mipmap-anydpi-v26) -->
+    <application
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+        <!-- 낮·밤(uiMode)이 바뀌거나 차량 패널이 붙어 창 크기가 바뀌어도 화면을 새로 만들지 않는다(PREND는 늘 제 어두운 바탕이고, Compose가 새 크기·밀도를 받아 다시 그린다).
+             새로 만들면 달리는 중에 음악 연결·유리 층을 처음부터 다시 짜느라 한 번 크게 끊긴다 -->
+        <activity
+            android:name=".ui.PrendActivity"
+            android:configChanges="uiMode|density|screenSize|smallestScreenSize|screenLayout|orientation|keyboardHidden|keyboard|navigation"
+            android:exported="true"
+            android:launchMode="singleTask">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
+        </activity>
+        <!-- 시연 패널(개발·PT용): PREND 화면 위 막대의 이름(기어 캡슐)을 3초 안에 다섯 번 누른다(꾹 누르기는 프렌드 몫). 다른 앱은 열지 못한다(디버그 빌드만 adb로 연다, src/debug) -->
+        <activity
+            android:name=".ui.DebugActivity"
+            android:exported="false"
+            android:launchMode="singleTop">
+            <meta-data
+                android:name="distractionOptimized"
+                android:value="true" />
+        </activity>
+
+        <!-- PREND 곡은 앱 안에서만 트는 곁들임이다(11/05 큰 틀: 앱 분류는 모빌리티 서비스).
+             차의 미디어 소스 목록에 음악 앱으로 따로 올리지 않는다(MediaBrowserService 빼고, 앱 안 연결용 media3 액션만 둔다) -->
+        <service
+            android:name=".PlaybackService"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaLibraryService" />
+            </intent-filter>
+        </service>
+
+        <!-- 다른 음악 앱의 곡 정보를 읽는 열쇠(알림 액세스). 알림 내용은 읽지 않는다 -->
+        <service
+            android:name=".music.MusicWatch"
+            android:exported="true"
+            android:label="@string/music_watch_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name=".BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <service
+            android:name=".RideService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse|microphone">
+            <!-- microphone: 이야기에 비켜 서기를 켠 운행에서, 화면을 연 뒤에만 더한다(말소리 여부만 판정, 별첨 1) -->
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="시동부터 운행 내내 차 신호를 지켜보다 사고·고장·갑자기 아픈 순간에 할 일을 안내하는 안전 도우미" />
+        </service>
+
+        <uses-library
+            android:name="android.car"
+            android:required="false" />
+    </application>
+</manifest>

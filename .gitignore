@@ -1,0 +1,41 @@
+# 비밀값: 앱 토큰·외부 서비스 키는 저장소 바깥(../.secrets)에 둔다. 혹시 안으로 옮겨도 올라가지 않게
+.secrets/
+*.key
+relay-token.txt
+
+# 서명 키(출시 키는 사용자가 정한다)
+*.jks
+*.keystore
+keystore.properties
+
+# 빌드 결과와 도구 캐시
+build/
+app/build/
+.gradle/
+.kotlin/
+.cxx/
+.externalNativeBuild/
+captures/
+*.apk
+*.aab
+# 제출용 APK는 apk/ 폴더에 둔다(공모전 제출 안내: 저장소의 apk/ 폴더, 팀명_앱이름_release.apk)
+!apk/*.apk
+
+# 이 PC의 SDK 경로
+local.properties
+
+# 편집기
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+
+# 시험 녹음·기록(기기에서 꺼낸 것)
+*.log
+capture.wav
+
+# 중계 서버·도구(저장소에서 함께 둔다)
+node_modules/
+.wrangler/
+.dev.vars

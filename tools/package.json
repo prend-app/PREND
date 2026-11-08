@@ -1,0 +1,8 @@
+{
+  "name": "prend-tools",
+  "private": true,
+  "description": "PREND 시험·자료 도구: Virtual Console 주행(vcride.js), PT 장면 키(ptkeys.js), 시연 음악 합성, 공공데이터 목록 만들기",
+  "dependencies": {
+    "puppeteer-core": "^25.13.0"
+  }
+}

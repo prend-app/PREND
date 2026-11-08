@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  런처 아이콘 글자: 기어 표시처럼 P R E N D, 세워 둔 동안(P·R)을 불빛 캡슐로 켠다(화면 위 막대의 이름과 같은 문법).
+  E는 꺼진 빨강, N·D는 꺼진 흰색. 글자는 굵기 2.2의 선으로 그렸고, 모두 가운데 지름 66의 안전 영역 안에 든다
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.94"
+        android:scaleY="0.94">
+        <!-- 캡슐 둘레의 옅은 불빛 -->
+        <path android:pathData="M13.9,54a20,20 0,1 0,40 0a20,20 0,1 0,-40 0z">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="radial"
+                    android:centerX="33.9"
+                    android:centerY="54"
+                    android:gradientRadius="20">
+                    <item android:offset="0" android:color="#1FFFFFFF" />
+                    <item android:offset="1" android:color="#00FFFFFF" />
+                </gradient>
+            </aapt:attr>
+        </path>
+        <!-- P·R을 켠 캡슐 -->
+        <path
+            android:fillColor="#29FFFFFF"
+            android:pathData="M30.8,43.5H37A10.5,10.5 0,0 1,37 64.5H30.8A10.5,10.5 0,0 1,30.8 43.5Z"
+            android:strokeWidth="0.6"
+            android:strokeColor="#29FFFFFF" />
+        <!-- P -->
+        <path
+            android:pathData="M23.8,60.8V47.2H27.2A3.4,3.4 0,0 1,27.2 54H23.8"
+            android:strokeWidth="2.2"
+            android:strokeColor="#FFF5F5F7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- R -->
+        <path
+            android:pathData="M37.2,60.8V47.2H40.6A3.4,3.4 0,0 1,40.6 54H37.2M40.6,54L44,60.8"
+            android:strokeWidth="2.2"
+            android:strokeColor="#FFF5F5F7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- E(꺼진 빨강) -->
+        <path
+            android:pathData="M57.4,47.2H50.6V60.8H57.4M50.6,54H56.4"
+            android:strokeWidth="2.2"
+            android:strokeColor="#73FF4F45"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- N -->
+        <path
+            android:pathData="M64,60.8V47.2L70.8,60.8V47.2"
+            android:strokeWidth="2.2"
+            android:strokeColor="#52F5F5F7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <!-- D -->
+        <path
+            android:pathData="M77.4,47.2H79.6A4.6,6.8 0,0 1,79.6 60.8H77.4Z"
+            android:strokeWidth="2.2"
+            android:strokeColor="#52F5F5F7"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

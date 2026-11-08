@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 런처 아이콘 바탕: PREND 첫 화면처럼 밤의 남색에서 거의 검정으로, 아래 오른쪽에 곡 표지의 노을빛이 아주 옅게 -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="0"
+                android:startY="0"
+                android:endX="108"
+                android:endY="108">
+                <item android:offset="0" android:color="#FF1E2A52" />
+                <item android:offset="0.55" android:color="#FF0B0D18" />
+                <item android:offset="1" android:color="#FF050507" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="86"
+                android:centerY="94"
+                android:gradientRadius="44">
+                <item android:offset="0" android:color="#808A4A3E" />
+                <item android:offset="1" android:color="#008A4A3E" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

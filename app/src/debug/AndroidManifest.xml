@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 디버그 빌드만: 시험용 중계 서버 대역(res/xml/network_security_config.xml) -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <application
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:ignore="UnusedAttribute">
+        <!-- 시연 패널을 adb로 연다(출시 빌드는 앱 안에서만) -->
+        <activity
+            android:name=".ui.DebugActivity"
+            android:exported="true"
+            tools:replace="android:exported" />
+    </application>
+</manifest>

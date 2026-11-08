@@ -1,0 +1,19 @@
+// PREND 중계 서버. 키는 `wrangler secret put`으로만 넣는다(이 파일과 소스에는 없다).
+// 위치를 남기지 않으려고 로그(observability)는 끈다
+// 요청 수 상한(11/07): 보낸 곳(IP)마다 1분에 40번, 생성형 AI(/intent)는 1분에 10번(Workers Rate Limiting, period는 10 또는 60초)
+// 하루 상한(11/09): Gemini를 부르는 수를 모든 곳을 합쳐 하루 500번까지 센다(Durable Object AiDay, 무료 플랜은 SQLite 저장소만 된다)
+{
+  "name": "prend-relay",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "observability": { "enabled": false },
+  "ratelimits": [
+    { "name": "PER_IP", "namespace_id": "4101", "simple": { "limit": 40, "period": 60 } },
+    { "name": "PER_IP_AI", "namespace_id": "4102", "simple": { "limit": 10, "period": 60 } }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "AI_DAY", "class_name": "AiDay" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["AiDay"] }]
+}

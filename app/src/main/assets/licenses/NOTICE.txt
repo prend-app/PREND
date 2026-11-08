@@ -1,0 +1,31 @@
+PREND가 함께 쓰는 오픈소스와 라이선스
+
+라이선스는 각 라이브러리가 배포한 POM의 <license>와 저장소의 LICENSE 파일에서 확인했다(2026-10-31).
+전문은 같은 폴더의 파일에 있다.
+
+글꼴
+- Pretendard (orioncactus/pretendard) · SIL Open Font License 1.1 · pretendard-OFL.txt
+  앱 res/font 에 굵기 여섯(Light~ExtraBold)을 그대로 넣었다. 글꼴만 따로 팔지 않는다.
+
+말소리 여부 판정(기기 안)
+- ONNX Runtime 1.20.0 (com.microsoft.onnxruntime:onnxruntime-android) · MIT · onnxruntime-LICENSE.txt
+- Silero VAD (snakers4/silero-vad, assets/models/silero_vad.onnx) · MIT · silero-vad-LICENSE.txt
+
+아이콘
+- Phosphor Icons (phosphor-icons/core) · MIT
+- compose-phosphor-icon 1.0.0 (com.adamglin:phosphor-icon) · MIT · phosphor-LICENSE.txt
+
+화면·소리·언어(Apache License 2.0 · apache-2.0.txt)
+- Jetpack Compose, AndroidX Activity·Lifecycle (androidx.*)
+- Media3 1.4.1 (androidx.media3:media3-session, media3-exoplayer)
+- Haze 1.7.1 (dev.chrisbanes.haze:haze, haze-materials)
+- Backdrop 1.0.0, Capsule 2.1.1 (io.github.kyant0)
+- Kotlin 표준 라이브러리, kotlinx.coroutines (org.jetbrains.kotlin, org.jetbrains.kotlinx)
+
+오픈소스가 아닌 것
+- Pleos Playground SDK(Vehicle 2.3.2, NaviHelper 3.0.5, SpeechToText 3.3.1): 공모전 개발 환경으로 받은 차량·내비·음성 인식 SDK
+
+앱이 만든 것
+- 시연 음악(비 오는 저녁)과 빗소리 결: tools/make_music.js 로 팀이 직접 합성했다
+- 목소리: Gemini TTS로 미리 만든 AI 합성 음성(assets/voice)
+- 알림음(차임): 앱이 코드로 합성한다(sound/Chime.kt)

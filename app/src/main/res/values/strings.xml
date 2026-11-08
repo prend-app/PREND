@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 앱 이름(app_name)과 곡 정보 열쇠의 이름(music_watch_name)은 app/build.gradle.kts 한 곳에서 만든다(코드의 Prend.NAME과 같은 값) -->
+</resources>
