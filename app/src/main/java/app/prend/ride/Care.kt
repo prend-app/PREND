@@ -1068,7 +1068,7 @@ class Care(
                 forceTalk = false
                 // 둘째 줄에 이야기 중엔 PREND도 말을 미룬다는 것을(사용자 결정 11/06: 곡을 틀지 않는 부모가 음악 이야기로만 읽고 넘기지 않게).
                 // 제목에 바람도 적는다(검토 11/07: 켜면 바람도 한 단 낮추는데 음악만 적혀 있었다)
-                Stage.ask(Ask("TALK", "이야기할 땐 음악과 바람이 비켜 설까요?", "말소리가 있는지만 재고 저장하지 않아요 · 이야기 중엔 저도 말을 미뤄요", "켜 둘게요", "괜찮아요"))
+                Stage.ask(Ask("TALK", "대화할 땐 음악과 바람 소리를 낮출까요?", "말소리가 있는지만 재고 저장하지 않아요 · 이야기 중엔 저도 말을 미뤄요", "켜 둘게요", "괜찮아요"))
                 say("voice/talk_ask.wav", "이야기 비켜 서기") { answerTalk(it, byButton = false) }
             }
             Line.TOILET -> {
@@ -2403,7 +2403,7 @@ class Care(
             now || later -> { closeSimple(); Prend.log("· 가족 정보: 미룸(${if (now) "지금·오늘 이야기" else "정하지 않겠다고 함"}, 다음 운행에 다시)") }
             // 어느 쪽으로 적었는지 한 줄로 분명히(말로 정한 것이 맞게 들렸는지 사람이 알 수 있게, 검토 11/07)
             yes -> { closeSimple(); baby.setKids(true, "물음에 있다고 함"); Stage.toast("가족 정보에 '아이 있음'으로 적었어요", 3_500) }
-            no -> { closeSimple(); baby.setKids(false, "물음에 없다고 함"); Stage.toast("가족 정보에 '아이 없음'으로 적었어요 · 기억 화면에서 바꿀 수 있어요", 3_500) }
+            no -> { closeSimple(); baby.setKids(false, "물음에 없다고 함"); Stage.toast("가족 정보에 '아이 없음'으로 적었어요 · 설정에서 바꿀 수 있어요", 3_500) }
             // 말이 없으면 카드를 15초 남긴다(정하지 않은 채로 두고 다음 운행에 한 번 더)
             else -> if (!unclear(Line.KIDS, text, byButton) { answerKids(it, byButton = false) }) later(15_000) { if (asking == Line.KIDS) closeSimple() }
         }
@@ -2414,7 +2414,7 @@ class Care(
         Prend.log("· 위치 알림 대답(버튼) → ${if (yes) "괜찮아요" else "보내지 않기"}")
         closeSimple()
         GeoShare.set(yes, "처음 알림 카드")
-        Stage.toast(if (yes) "알겠어요. 기억 화면에서 바꿀 수 있어요" else "위치를 보내지 않을게요 · 병원은 앱 안 목록으로 찾아요", 3_500)
+        Stage.toast(if (yes) "알겠어요. 설정에서 바꿀 수 있어요" else "위치를 보내지 않을게요 · 병원은 앱 안 목록으로 찾아요", 3_500)
     }
 
     private fun answerBump(text: String, byButton: Boolean) {

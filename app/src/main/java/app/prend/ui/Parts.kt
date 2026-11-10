@@ -59,6 +59,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.ImageShader
@@ -164,7 +165,8 @@ private fun GearLetter(ch: Char, on: Boolean, red: Boolean) {
     }
 }
 
-enum class TopRight { NORMAL, CLOSE, NONE }
+/** FRIEND는 [프렌드]만(달리는 동안의 첫 화면: 가운데 줄이 [긴급]) */
+enum class TopRight { NORMAL, FRIEND, CLOSE, NONE }
 
 /**
  * 위 막대: 이름 | 지금 순간 ……… (시연 표) [프렌드] [긴급].
@@ -204,6 +206,11 @@ fun TopBar(lit: String, moment: String, right: TopRight, onFriend: () -> Unit, o
                             // 앱 안에서는 '긴급'(11/02 사용자: Emergency는 앱 이름 PR·E·ND를 소개할 때만)
                             Text("긴급", style = t(25, W700, C.RedInk, tracking = -0.005))
                         }
+                    }
+                    TopRight.FRIEND -> Capsule(onFriend, Modifier.liquid(Pill)) {
+                        Icon(PhosphorIcons.Regular.Microphone, null, tint = C.L1, modifier = Modifier.size(32.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Text(Prend.CALL, style = t(25, W600))
                     }
                     TopRight.CLOSE -> Capsule(onClose, Modifier.liquid(Pill), padStart = 34, padEnd = 34) { Text("닫기", style = t(25, W600)) }
                     TopRight.NONE -> Unit
@@ -264,8 +271,8 @@ fun Modifier.glowOnce(tint: Color, shape: Shape, still: Boolean = false): Modifi
 fun Btn(text: String, primary: Boolean, height: Int = 96, size: Int = 32, pad: Int = 46, icon: ImageVector? = null, iconAfter: Boolean = false, danger: Boolean = false, onClick: () -> Unit) {
     val shape = Pill
     Row(
-        Modifier.press(shape, onClick = onClick).height(height.dp).clip(shape)
-            .background(when { danger -> C.Red; primary -> C.L1; else -> C.Fill })
+        Modifier.press(shape, onClick = onClick).height(height.dp)
+            .btnSurface(shape, primary, danger)
             .padding(horizontal = pad.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -276,6 +283,22 @@ fun Btn(text: String, primary: Boolean, height: Int = 96, size: Int = 32, pad: I
         if (icon != null && iconAfter) Icon(icon, null, tint = ink, modifier = Modifier.size((size + 2).dp))
     }
 }
+
+/**
+ * 알약 단추의 겉(11/09 스모크 유리): 할 일은 흰 바탕에 위쪽 광택과 그림자, 119 쪽은 빨강에 붉은 그림자, 나머지는 판과 같은 스모크 유리
+ */
+@Composable
+private fun Modifier.btnSurface(shape: Shape, primary: Boolean, danger: Boolean): Modifier = when {
+    danger -> dropShadow(shape, Shadow(radius = 24.dp, color = C.Red.copy(alpha = .35f), offset = DpOffset(0.dp, 8.dp)))
+        .clip(shape).background(Brush.verticalGradient(listOf(Color(0xFFFF5A50), Color(0xFFE5392F)))).sheen()
+    primary -> dropShadow(shape, Shadow(radius = 22.dp, color = Color.Black.copy(alpha = .35f), offset = DpOffset(0.dp, 8.dp)))
+        .clip(shape).background(Brush.verticalGradient(listOf(Color.White, Color(0xFFE6E7EC))))
+    // 흐림(Haze) 없이 짙은 바탕 + 광택 + 모서리 빛: 단추마다 흐리면 설정·내 보험사 화면에 흐림 판이 열 개를 넘고(장면이 바뀌는 동안 프레임마다 다시 흐린다),
+    // 바탕 층에 그리는 쪽잠 화면의 단추는 흐림이 그려지지 않아 바탕이 비었다(11/10 검토)
+    else -> clip(shape).background(Color(0xFF15161B).copy(alpha = .80f)).sheen().border(1.5.dp, btnRim, shape)
+}
+
+private val btnRim = rimOf()
 
 // ── 듣는 표시: 숨 쉬듯 오르내리는 막대. level이 있으면 목소리 크기를 따른다 ──
 
@@ -431,7 +454,9 @@ const val SOS_LINE = "SOS 버튼을 누르거나 119에 알리세요"
 /** 아이콘 상자(카드 머리의 둥근 네모) */
 @Composable
 fun IconTile(icon: ImageVector, tint: Color, bg: Color, box: Int, radius: Int, iconSize: Int) {
-    Box(Modifier.size(box.dp).clip(sq(radius)).background(bg), contentAlignment = Alignment.Center) {
+    // 11/09 스모크 유리: 둥근 네모 받침 대신 아이콘 뒤에 은은한 빛(아이콘 색으로). 받침 자리(box)는 그대로 차지한다
+    Box(Modifier.size(box.dp), contentAlignment = Alignment.Center) {
+        Box(Modifier.requiredSize((box * 1.7f).dp).background(Brush.radialGradient(listOf(tint.copy(alpha = if (tint == C.L1) .14f else .24f), Color.Transparent))))
         Icon(icon, null, tint = tint, modifier = Modifier.size(iconSize.dp))
     }
 }

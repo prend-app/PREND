@@ -108,7 +108,7 @@ class Banner(private val context: Context) {
             // 혹시 사고에 대답이 없었다: 세워 둔 동안 10분, 누르면 사고 났을 때 할 일
             ui.bumpHint && parked -> Look("혹시 사고였나요?", "눌러서 사고 났을 때 할 일 보기", listOf("열기" to "$SCENE${Scene.ACCIDENT.name}"), Scene.ACCIDENT)
             ui.scene == Scene.NAP -> Look("쪽잠 ${ui.napMinutes}분", "눌러서 쪽잠 화면 열기", listOf("열기" to OPEN), Scene.NAP)
-            ui.scene == Scene.PICK -> Look("같이 고르기", "눌러서 같이 골라요", listOf("열기" to OPEN), Scene.PICK)
+            ui.scene == Scene.PICK -> Look("밥집·카페", "눌러서 같이 골라요", listOf("열기" to OPEN), Scene.PICK)
             parked -> when {
                 // 세워 둔 동안도 달리는 동안과 같은 작은 알림(큰 것과 작은 것을 오가며 다시 떠 내비를 가리지 않게, 11/04 검토)
                 listening -> Look(Prend.CALL, "듣고 있어요", emptyList(), small = true)

@@ -18,9 +18,9 @@ enum class Scene(val lit: String, val moment: String) {
     ILLNESS("E", "갑자기 아플 때"),
     AID("E", "응급처치"),
     NAP("PR", "쪽잠"),
-    PICK("PR", "같이 고르기"),
-    MEMO("PR", "기억"),
-    CARE("PR", "차 돌봄");
+    PICK("PR", "밥집·카페"),
+    MEMO("PR", "설정"),
+    CARE("PR", "차 정비");
 
     val isE get() = lit == "E"
 }
@@ -236,6 +236,8 @@ data class StageUi(
     val about: Boolean = false,
     /** 기억 화면 안의 '그 밖에'(한 시간·주차 자리·대리 운행·쪽잠·오래 막힐 때·같이 고르기·이야기에 비켜 서기)를 보는 중. 기억 화면을 벗어나면 거둔다 */
     val memoMore: Boolean = false,
+    /** 설정 안의 '내 보험사' 고르기를 보는 중(11/10). 설정을 벗어나면 거둔다 */
+    val insurerPick: Boolean = false,
     /**
      * 듣고 보기(ride/SlowTalk·Dusk가 넣는다, 검토-방향노인초보 3-9): 천천히 말하기, 넉넉히 기다리기(대답 창 8초), 해 지기 전에 알려 주기.
      * why는 켜진 까닭 한 줄(기억 화면에서 사람이 켰으면 null)
@@ -265,7 +267,7 @@ data class StageUi(
         eSince.takeIf { it > 0 }?.let { java.text.SimpleDateFormat("a h:mm", java.util.Locale.KOREA).format(java.util.Date(it)) },
         if (scene == Scene.ILLNESS) "아프다고 한 뒤 대답이 없었어요" else "에어백이 터진 뒤 대답이 없었어요",
     ).joinToString(" ")
-    val moment get() = base + (if (callWait && scene.isE) " · $CALL_WAIT" else "") + (if (daeri && !scene.isE) " · 대리 운행" else "") + (if (quietRide && !scene.isE) " · 조용히" else "")
+    val moment get() = base + (if (callWait && scene.isE) " · $CALL_WAIT" else "") + (if (daeri && !scene.isE) " · 대리 운행" else "") + (if (quietRide && !scene.isE) " · 급한 말만" else "")
 
     private val base get() = when {
         scene == Scene.ACCIDENT && rescue -> "사고 · 구조 요청"
@@ -276,7 +278,8 @@ data class StageUi(
         scene == Scene.ACCIDENT && !highway -> "사고 · 일반 도로"
         scene == Scene.AID -> "응급처치 · ${aid.label}"
         scene == Scene.MEMO && about -> "앱 정보"
-        scene == Scene.MEMO && memoMore -> "기억 · 그 밖에"
+        scene == Scene.MEMO && memoMore -> "설정 · 배운 것"
+        scene == Scene.MEMO && insurerPick -> "설정 · 내 보험사"
         scene != Scene.HOME -> scene.moment
         gear == VehicleGear.GEAR_PARK -> "세워 둔 동안"
         gear == VehicleGear.GEAR_REVERSE -> "후진 중"
@@ -314,7 +317,6 @@ object Guide {
     private val SWAP = Step("상대와 연락처·\n차 번호·보험사를\n주고받으세요", "합의는 현장에서 하지 말고 보험사에 맡기세요", Card.SWAP)
 
     /** 아플 때 병원 걸음의 한 줄: PREND가 하는 일(조건별 판정 없이 공식 안내와 119·병원 연결, 별첨 11 §13-1의 앱 문구) */
-    private const val ILL_ROLE = "${Prend.NAME}는 진단하지 않고, 공식 안내와 119·병원 연결을 도와요"
 
     /**
      * 고속도로 사고(§5-1, 한국도로공사 순서). 대피와 119가 먼저이고, 보험사·영상·상대는 가드레일 밖에서.
@@ -421,13 +423,13 @@ object Guide {
     /**
      * 갑자기 아플 때. 아이 이야기이고 진료 중인 달빛어린이병원이 있으면 둘째 걸음이 그곳을 묻는다.
      * 첫 걸음의 상황요원은 별첨 §5-4 차례 2(설명 줄은 세워 둔 화면에만 보여, '달리는 중이면 핸즈프리로'는 달릴 때 목소리 e_ill_call이 맡는다).
-     * 둘째 걸음의 한 줄은 '진단하지 않는다' 원칙(별첨 11 §13-1)을 화면에 적은 것
+     * 둘째 걸음은 물음 한 줄만(11/09 사용자 "담백하게": '진단하지 않는다' 단서 줄을 뺐다. 원칙은 별첨 11 §13-1에 그대로)
      */
     fun illness(ui: StageUi) = listOf(
         // 운전자가 아프면(11/02) 병원으로 몰고 가게 하지 않고 세운 뒤 119. 둘째 걸음의 병원은 사람이 고를 때만
         if (ui.driverIll) Step("운전은 멈추고\n세운 뒤 119", "119에 이 위치를 읽어 주세요\n가슴 통증·한쪽 팔다리 힘 빠짐·말이 어눌하면 기다리지 마세요", dial = "119")
         else Step("숨쉬기나 의식이 이상하면\n119가 먼저예요", "119에 이 위치를 읽어 주고\n상황요원의 안내를 따르세요", dial = "119"),
-        if (ui.hosp.moonFirst(ui.kid) || (ui.hosp.er == null && ui.hosp.moon != null)) Step("가까운 달빛어린이병원을\n경유지로 넣을까요?", ILL_ROLE) else Step("가까운 응급실을\n경유지로 넣을까요?", ILL_ROLE),
+        if (ui.hosp.moonFirst(ui.kid) || (ui.hosp.er == null && ui.hosp.moon != null)) Step("가까운 달빛어린이병원을\n경유지로 넣을까요?") else Step("가까운 응급실을\n경유지로 넣을까요?"),
         Step("병원 가는 길을\n넣어 뒀어요", ui.hosp.chosen?.name),
     )
 
@@ -461,7 +463,7 @@ object Guide {
             Step("나올 때까지\n등 5번, 가슴 5번을\n되풀이하세요", "아기가 축 늘어지면 바로 119 · 상황요원이 다음을 알려 줘요", mark = "등 5\n가슴 5"),
         )
         Aid.SEIZURE -> listOf(
-            Step("머리 아래에\n두꺼운 옷이나 방석을\n대 주세요", "억지로 붙잡지 마세요 · 시작한 시각은 ${Prend.NAME}가 적어 둬요", pic = R.drawable.aid_sz_1),
+            Step("머리 아래에\n두꺼운 옷이나 방석을\n대 주세요", "억지로 붙잡지 마세요", pic = R.drawable.aid_sz_1),
             Step("안경과 틀니를 빼고\n고개를 옆으로\n돌려 주세요", "입 안에는 아무것도 넣지 마세요", pic = R.drawable.aid_sz_2),
             Step("사람들이\n보지 않게\n가려 주세요", "주변을 비키게 하고 · 치마를 입었으면 덮어 주기", pic = R.drawable.aid_sz_3),
             Step("옆으로 눕혀\n편히 숨 쉬게\n해 주세요", "깨어날 때까지 곁에 있어 주세요", pic = R.drawable.aid_sz_4),
@@ -541,7 +543,7 @@ object Stage {
                 // 고장은 사고 화면으로 들어갈 때만 켠다(E 첫 화면·다른 E로 가면 끈다)
                 breakdown = scene == Scene.ACCIDENT && it.breakdown, fire = scene == Scene.ACCIDENT && it.fire,
                 hosp = if (scene.isE) it.hosp else Hosp(), aidWant = if (scene.isE) it.aidWant else null,
-                place = if (scene.isE) it.place else null, sos = scene.isE && it.sos, about = false, memoMore = false,
+                place = if (scene.isE) it.place else null, sos = scene.isE && it.sos, about = false, memoMore = false, insurerPick = false,
                 okAsk = scene.isE && it.okAsk, callWait = scene.isE && it.callWait,
                 // AI 대역의 짐작 표시도 E를 벗어나면 거둔다(검토 11/07 멋대로 판단)
                 guess = if (scene.isE) it.guess else null,
@@ -591,7 +593,7 @@ object Stage {
     fun openPick(kind: String = "food") {
         if (!ui.value.parked) { toast("세우면 같이 골라요"); return }
         go(Scene.PICK)
-        onPick?.invoke("open", kind) ?: toast("같이 고르기는 운행 서비스가 있어야 해요")
+        onPick?.invoke("open", kind) ?: toast("밥집·카페 찾기는 운행 서비스가 있어야 해요")
     }
 
     fun pick(what: String, arg: String = "") { onPick?.invoke(what, arg) }
@@ -616,9 +618,9 @@ object Stage {
 
     /** 차 돌봄을 연다. 세워 둔 동안만(긴 글). key를 주면 그 항목을 펼친다 */
     fun openCare(key: String = "") {
-        if (!ui.value.parked) { toast("세우면 차 돌봄을 보여 드릴게요"); return }
+        if (!ui.value.parked) { toast("세우면 차 정비를 보여 드릴게요"); return }
         go(Scene.CARE)
-        onCare?.invoke("open", key) ?: toast("차 돌봄은 운행 서비스가 있어야 해요")
+        onCare?.invoke("open", key) ?: toast("차 정비는 운행 서비스가 있어야 해요")
     }
 
     fun care(what: String, arg: String = "") { onCare?.invoke(what, arg) }
@@ -754,7 +756,7 @@ object Stage {
 
     /** 기억 화면을 연다. 세워 둔 동안만(달리는 동안은 차 화면의 긴 글이 막힌다) */
     fun openMemo() {
-        if (!ui.value.parked) { toast("세우면 기억한 것을 보여 드릴게요"); return }
+        if (!ui.value.parked) { toast("세우면 설정을 보여 드릴게요"); return }
         go(Scene.MEMO)
     }
 
@@ -765,7 +767,7 @@ object Stage {
     fun openAbout(on: Boolean = true) {
         if (on && !ui.value.parked) { toast("세우면 앱 정보를 보여 드릴게요"); return }
         if (on && ui.value.scene != Scene.MEMO) go(Scene.MEMO)
-        ui.update { it.copy(about = on && it.scene == Scene.MEMO) }
+        ui.update { it.copy(about = on && it.scene == Scene.MEMO, insurerPick = false) }
     }
 
     /**
@@ -773,12 +775,19 @@ object Stage {
      * 이야기에 비켜 서기를 한 화면에. 기억 화면의 '그 밖에' 판으로 연다. 세워 둔 동안만, 출발하면 기억 화면과 함께 닫힌다
      */
     fun openMemoMore(on: Boolean = true) {
-        if (on && !ui.value.parked) { toast("세우면 기억한 것을 보여 드릴게요"); return }
+        if (on && !ui.value.parked) { toast("세우면 설정을 보여 드릴게요"); return }
         if (on && ui.value.scene != Scene.MEMO) go(Scene.MEMO)
-        ui.update { it.copy(memoMore = on && it.scene == Scene.MEMO, about = false) }
+        ui.update { it.copy(memoMore = on && it.scene == Scene.MEMO, about = false, insurerPick = false) }
     }
 
-    fun forget(kind: String?) { onForget?.invoke(kind) ?: toast("기억은 운행 서비스가 있어야 해요") }
+    /** 설정 안의 '내 보험사' 고르기를 열고 닫는다(세워 둔 동안만) */
+    fun openInsurer(on: Boolean = true) {
+        if (on && !ui.value.parked && !ui.value.demo) { toast("세우면 설정을 보여 드릴게요"); return }
+        if (on && ui.value.scene != Scene.MEMO) go(Scene.MEMO)
+        ui.update { it.copy(insurerPick = on && it.scene == Scene.MEMO, memoMore = false, about = false) }
+    }
+
+    fun forget(kind: String?) { onForget?.invoke(kind) ?: toast("배운 것은 운행 서비스가 있어야 지울 수 있어요") }
 
     /** 이번 운행만의 아이 탑승을 켜고 끈다("아이 탔어"·"아이 내렸어"). 운행 서비스가 소리를 맞춘다 */
     var onBaby: ((Boolean) -> Unit)? = null
@@ -812,7 +821,7 @@ object Stage {
 
     fun talk(on: Boolean) {
         onTalk?.invoke(on) ?: ui.update { it.copy(talkOn = on) }
-        toast(if (on) "이야기할 땐 음악과 바람이 비켜 설게요 · 말소리 여부만 재요" else "이야기에 비켜 서기를 껐어요 · 마이크를 쓰지 않아요", 3_500)
+        toast(if (on) "대화할 땐 음악과 바람 소리를 낮출게요 · 말소리가 들리는지만 재요" else "대화 중엔 소리 낮추기를 껐어요 · 마이크를 쓰지 않아요", 3_500)
     }
 
     /** 마이크 허락을 묻는다(화면이 붙인다. 이야기에 비켜 서기를 켰는데 허락이 없을 때) */
@@ -847,17 +856,17 @@ object Stage {
 
     fun asks(key: String, on: Boolean) {
         onAsks?.takeIf { !ui.value.demo }?.invoke(key, on) ?: ui.update { it.copy(asks = if (on) it.asks + key else it.asks - key) }
-        val (label, what) = ASK_LINES[key] ?: return
-        toast(if (on) what else "$label 물음을 껐어요", 3_000)
+        val what = ASK_LINES[key]?.second ?: return
+        toast(if (on) what else "이제 먼저 묻지 않을게요", 3_000)
     }
 
     /** 먼저 묻기의 물음 이름과 켰을 때의 한 줄(기억 화면의 줄 이름도 이것) */
     val ASK_LINES = linkedMapOf(
-        "HOUR" to ("한 시간" to "한 시간 달리면 필요한 것을 여쭐게요"),
-        "DAERI" to ("대리 운행" to "밤에 동승자가 타면 대리 운행인지 여쭐게요"),
-        "TALK" to ("이야기에 비켜 서기" to "동승자가 타면 이야기에 비켜 설지 여쭐게요"),
-        "JAM" to ("오래 막힐 때" to "오래 막히면 차 안 분위기를 바꿀지 여쭐게요"),
-        "PICK" to ("같이 고르기" to "밥때 같이 세우면 먹을 곳을 같이 고를지 여쭐게요"),
+        "HOUR" to ("한 시간 달리면 필요한 것" to "한 시간 달리면 필요한 것을 여쭐게요"),
+        "DAERI" to ("밤에 대리 운행인지" to "밤에 동승자가 타면 대리 운행인지 여쭐게요"),
+        "TALK" to ("동승자가 타면 소리 낮출지" to "동승자가 타면 대화 중엔 소리를 낮출지 여쭐게요"),
+        "JAM" to ("오래 막히면 분위기 바꿀지" to "오래 막히면 차 안 분위기를 바꿀지 여쭐게요"),
+        "PICK" to ("밥때 밥집·카페 고를지" to "밥때 같이 세우면 먹을 곳을 같이 고를지 여쭐게요"),
     )
 
     /** 위치 보내기를 켜고 끈다(기억 화면, ride/GeoShare) */
@@ -1335,7 +1344,7 @@ object Stage {
     private val DAERI_SAID = listOf("대리운전", "대리기사", "대리불렀", "대리왔", "대리운행", "대륙운행", "대리예요", "대리에요")
     private val DAERI_TALK = listOf("불러야", "부를까", "불러줘", "불러주", "번호", "얼마", "요금", "어디", "부르려고", "부를래", "부르자", "부를게")
     /** 조용히 가자는 분명한 말. "조용히"만 있으면 소리·바람 말("에어컨 소리 좀 조용히")을 먼저 가른다 */
-    private val QUIET_SAID = listOf("말걸지마", "말시키지마", "말하지마", "쉿", "애잔다", "애자요", "애자니까", "애기잔다", "애기자요", "아이잔다", "아이자요", "아기잔다", "아기자요", "애들잔다", "애들자요", "자고있어", "손님있어", "손님있으니", "손님탔어", "손님탔으니")
+    private val QUIET_SAID = listOf("급한말만", "말걸지마", "말시키지마", "말하지마", "쉿", "애잔다", "애자요", "애자니까", "애기잔다", "애기자요", "아이잔다", "아이자요", "아기잔다", "아기자요", "애들잔다", "애들자요", "자고있어", "손님있어", "손님있으니", "손님탔어", "손님탔으니")
     private val QUIET_NOISE = listOf("에어컨", "바람", "소리", "볼륨", "팬", "히터")
     /** 에어컨·히터(PREND가 켜지 않는 차 공조) */
     private val HVAC = listOf("에어컨", "히터", "에어콘")
@@ -1440,7 +1449,7 @@ object Stage {
                 if (u.others && meal) add("밥집 찾아 줘")
                 if (u.driveMinutes >= 30) add("쪽잠 ${u.habits.napMin ?: 15}분")
                 // 갈 때가 된 정비 항목이 있으면 차 돌봄을 여는 말
-                if (u.care.rows.any { it.due }) add("차 돌봄 보여 줘")
+                if (u.care.rows.any { it.due }) add("차 정비 보여 줘")
                 add("음악 틀어 줘")
             } else {
                 if (u.driveMinutes >= 90) add("졸려")
@@ -1715,6 +1724,12 @@ object Stage {
             "기억" in s && PARK_SPOT.any { it in s } -> "say_spot"
             // 급할 때 화면에서는 기억·천천히 말하기·주차 도움으로 옮겨 가지 않는다. "아까 그 노래 기억나?"는 기억 화면이 아니라 노래 물음
             !e && listOf("기억", "잊어").any { it in s } && SONG_ASK.none { it in s } -> "memo"
+            // 첫 화면 단추 이름 그대로 "설정 열어 줘"(11/09). 말머리가 설정일 때만("온도 설정해 줘"는 아니다)
+            !e && (s.startsWith("설정") || listOf("앱설정", "프렌드설정", "설정화면").any { it in s }) -> "memo"
+            // 설정 화면에 보이는 이름 그대로 부르는 말(11/10 검토): "배운 거 보여 줘", "보험사 바꿔 줘", "대화할 때 소리 낮춰 줘"
+            !e && listOf("배운거", "배운것", "배운게").any { it in s } -> "memo_more"
+            !e && "보험사" in s && listOf("바꿔", "바꾸", "골라", "고를", "정해", "설정").any { it in s } -> "insurer"
+            !e && "대화" in s && listOf("낮춰", "낮추", "줄여", "조용").any { it in s } -> if (OFF.any { it in s }) "talk_off" else "talk_on"
             // "천천히 말해 줘"·"원래대로 말해"(ride/SlowTalk)
             !e && "천천히" in s && "말" in s -> "slow_on"
             !e && listOf("원래대로말", "빨리말해", "보통으로말", "보통빠르기").any { it in s } -> "slow_off"
@@ -1770,6 +1785,8 @@ object Stage {
             DAERI_SAID.any { it in s } && DAERI_TALK.none { it in s } -> if (u.daeri) "daeri_on" else "ask_daeri"
             // 조용히 가기(이번 운행만): 다시 말해도 된다는 말을 먼저 가른다. "조용히 말해 줘"(목소리 크기)·"조용한 곡"은 아니다
             listOf("말해도돼", "말걸어도돼", "조용히안해도").any { it in s } || "조용히" in s && UNDO.any { it in s } -> "quiet_off"
+            // 화면 이름으로 끄는 말("급한 말만 하기 꺼 줘"·"조용히 가기 그만"): 아래 켜는 낱말에 걸려 거꾸로 켜졌다(11/10 검토)
+            listOf("급한말만", "조용히가기").any { it in s } && (OFF + listOf("풀어", "해제")).any { it in s } -> "quiet_off"
             // 알아서 한 일 되돌리기("되돌려"·"원래대로"). "대리 끝났어, 원래대로"·"이제 말해도 돼, 원래대로"는 위에서 대리 끝·조용히 끝으로 먼저 간다.
             // "빗소리 원래대로"는 아래 빗소리 빼기로
             UNDO.any { it in s } && RAIN.none { it in s } -> "undo"
@@ -1809,7 +1826,8 @@ object Stage {
             listOf("쪽잠", "잘래요").any { w -> (OFF + "끝").any { "$w$it" in s } } -> "nap_off"
             listOf("쪽잠", "잘래", "자고싶", "잠깐잘", "눈좀붙", "눈붙이").any { it in s } -> "nap"
             // 같이 고르기(카페·밥집), 그다음 그냥 쉬어 가자는 말. "약 먹을 시간"의 '먹을'은 밥집이 아니다(검토 11/07 멋대로 판단)
-            listOf("카페", "커피").any { it in s } -> "cafe"
+            // 단추 이름 그대로 "밥집 카페 열어 줘"는 단추처럼 밥집부터
+            listOf("카페", "커피").any { it in s } && "밥집" !in s -> "cafe"
             listOf("맛집", "밥집", "식당", "배고파", "배고프", "점심", "저녁먹", "밥먹").any { it in s } || EAT_PLACE.containsMatchIn(s) -> "food"
             // "좀 쉬었다 가자"·"쉬자"도(시험 33: AI를 거쳐야 쉼터로 갔다)
             ACHE_REST.any { it in s } -> if (restNo) "rest_no" else "rest"
@@ -1963,6 +1981,10 @@ object Stage {
             "aid_seizure" -> aid(Aid.SEIZURE, s, kid)
             "food", "cafe" -> openPick(intent)
             "memo" -> openMemo()
+            "memo_more" -> openMemoMore()
+            "insurer" -> openInsurer()
+            "talk_on" -> talk(true)
+            "talk_off" -> talk(false)
             // 낱말 규칙에 없던 되묻기("뭐라 하셨어요?", AI 대역): 대답 창은 이미 닫혔으니 방금 한 말만 천천히 다시(ride/SlowTalk)
             "again" -> onAgain?.invoke(null) ?: toast("방금 드린 말이 없어요", 2_000)
             // 급할 때 화면에서는 차 돌봄으로 넘어가지 않는다(사고·아플 때 안내가 끊기지 않게)
@@ -2041,9 +2063,9 @@ object Stage {
             // 부품 고장("와이퍼가 고장 났나 봐"): 그 항목의 차 돌봄으로(세우면 열린다). 차 돌봄에 없는 부품이면 한 줄만
             // 차 돌봄에 없는 부품이면 세워 둔 동안은 차 돌봄 목록(정비소 찾기)을 연다. "세운 뒤"는 달리는 동안에만(11/08 에뮬레이터: 세워 둔 채 "세운 뒤"가 떴다)
             "care_broken" -> careKey(s)?.takeIf { !ui.value.scene.isE }?.let { openCare(it) } ?: when {
-                ui.value.scene.isE -> toast("고장 난 곳은 안내가 끝난 뒤 차 돌봄에서 볼 수 있어요", 3_500)
+                ui.value.scene.isE -> toast("고장 난 곳은 안내가 끝난 뒤 차 정비에서 볼 수 있어요", 3_500)
                 ui.value.parked -> openCare()
-                else -> toast("고장 난 곳은 세운 뒤 차 돌봄에서 볼 수 있어요", 3_500)
+                else -> toast("고장 난 곳은 세운 뒤 차 정비에서 볼 수 있어요", 3_500)
             }
             "outside_smoke" -> outsideSmoke()
             // 성에 제거 끄기·주차 코치 끄기(ride/Coach가 한다)

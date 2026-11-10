@@ -90,5 +90,5 @@ object GeoShare {
     const val MAX_ASKS = 2
 
     /** 위치를 보내야 찾을 수 있는 화면(같이 고르기·블루핸즈)에 둘 한 줄 */
-    const val OFF_LINE = "위치를 보내지 않게 해 두셨어요 · 기억 화면에서 바꿀 수 있어요"
+    const val OFF_LINE = "위치를 보내지 않게 해 두셨어요 · 설정에서 바꿀 수 있어요"
 }

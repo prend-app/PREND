@@ -433,7 +433,7 @@ class RideService : Service() {
     private fun released(quiet: Boolean, daeri: Boolean) {
         val u = Stage.ui.value
         val lines = listOfNotNull(
-            "지난 운행의 '조용히 가기'를 풀었어요".takeIf { quiet && !u.quietRide },
+            "지난 운행의 '급한 말만 하기'를 풀었어요".takeIf { quiet && !u.quietRide },
             "대리 운행을 풀었어요".takeIf { daeri && !u.daeri },
         )
         if (lines.isEmpty()) return

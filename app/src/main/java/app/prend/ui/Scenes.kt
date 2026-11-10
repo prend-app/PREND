@@ -24,6 +24,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.IntrinsicSize
@@ -58,6 +59,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
@@ -136,6 +138,22 @@ import com.adamglin.phosphoricons.fill.Info
 import com.adamglin.phosphoricons.fill.Database
 import com.adamglin.phosphoricons.fill.Code
 import com.adamglin.phosphoricons.fill.ChatCircleDots
+import com.adamglin.phosphoricons.Duotone
+import com.adamglin.phosphoricons.regular.ArrowUpRight
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.ui.graphics.Brush
+import com.adamglin.phosphoricons.duotone.GearSix
+import com.adamglin.phosphoricons.duotone.MoonStars
+import com.adamglin.phosphoricons.duotone.ForkKnife
+import com.adamglin.phosphoricons.duotone.Wrench
+import com.adamglin.phosphoricons.duotone.Warning
+import com.adamglin.phosphoricons.duotone.Microphone
+import com.adamglin.phosphoricons.duotone.Gauge
+import com.adamglin.phosphoricons.duotone.HandPalm
+import com.adamglin.phosphoricons.duotone.DoorOpen
+import com.adamglin.phosphoricons.fill.Metronome
+import androidx.lifecycle.compose.LifecycleStartEffect
+import app.prend.sound.Beat
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.TextOverflow
@@ -211,15 +229,14 @@ fun SceneBack(scene: Scene, ui: StageUi, song: Song, a: Acts, driving: Boolean =
     // 장면 층은 늘 화면 크기로: 바뀌는 동안(반투명) 이 층만큼만 그려져, 곡 표지 그림자처럼 줄 밖으로 번진 것이 잘렸다 나타나지 않게
     Box(Modifier.fillMaxSize()) {
         when (scene) {
-            // 11/05 큰 틀(얼굴은 E): 세워 둔 첫 화면 가운데는 '급할 때' 판(앞 층의 HomeE, 위치 줄이 바뀌어도 유리를 다시 흐리지 않게), 달리는 동안은 급할 때 한 줄(누르면 E 첫 화면)
-            Scene.HOME -> if (driving) DriveE(a) else Unit
-            Scene.DRIVE -> DriveE(a)
+            // 11/05 큰 틀(얼굴은 E): 세워 둔 첫 화면 가운데는 큰 단추 둘(앞 층의 HomeMain), 달리는 동안은 급할 때 한 줄(누르면 E 첫 화면)
+            Scene.HOME, Scene.DRIVE -> Unit
             Scene.EMERGENCY -> EmergencyHead()
             Scene.ACCIDENT, Scene.ILLNESS -> if (ui.rescue) RescueHead(ui) else StepSlide(ui) { StepHead(scene, it) }
             Scene.AID -> StepSlide(ui) { AidHead(it) }
             Scene.NAP -> Nap(ui)
             Scene.PICK -> PickHead(ui)
-            Scene.MEMO -> if (ui.about) AboutHead() else if (ui.memoMore && !ui.daeri) MemoMoreHead() else MemoHead()
+            Scene.MEMO -> if (ui.about) AboutHead() else if (ui.memoMore && !ui.daeri) MemoMoreHead() else if (ui.insurerPick && !ui.daeri) InsurerHead() else MemoHead()
             Scene.CARE -> CareHead(ui)
         }
     }
@@ -240,7 +257,15 @@ fun SceneTop(ui: StageUi, a: Acts) {
     }
     // 마이크로 말소리 여부를 재는 동안은 늘 알린다(별첨 1: 켜진 동안 "말소리 여부만 · 저장 안 함")
     val moment = ui.moment + if (ui.talkLive) "   ● 말소리 여부만 재는 중 · 저장 안 함" else ""
-    TopBar(ui.lit, moment, right, a.friend, a.sos, onClose = { Stage.go(Scene.HOME) }, onSecret = a.secret, presence = ui.presence, tag = ui.demoTag)
+    // 세워 둔 첫 화면은 큰 단추가 [긴급]·[프렌드]라 위 막대의 같은 단추는 뺀다(같은 것을 두 번 두지 않는다, 11/09 담백하게). 큰 물음이 떠 있으면 그대로 둔다
+    val top = when {
+        right != TopRight.NORMAL -> right
+        // 달리는 동안(첫 화면, 쉼터 카드가 뜬 화면)은 가운데 줄이 [긴급]이라 위에는 [프렌드]만
+        scene == Scene.DRIVE || scene == Scene.HOME && ui.face.driving -> TopRight.FRIEND
+        scene != Scene.HOME || ui.ask?.id in BIG_ASKS -> right
+        else -> TopRight.NONE
+    }
+    TopBar(ui.lit, moment, top, a.friend, a.sos, onClose = { Stage.go(Scene.HOME) }, onSecret = a.secret, presence = ui.presence, tag = ui.demoTag)
 }
 
 /** pos는 지금 재생 위치(위치 막대만 읽는다), level은 듣는 동안의 목소리 크기(말하기 막대가 그릴 때만 읽는다), driving은 달리는 동안의 첫 화면 */
@@ -249,10 +274,11 @@ fun SceneFront(scene: Scene, ui: StageUi, song: Song, pos: () -> Long, level: ()
     Box(Modifier.fillMaxSize()) {
         when (scene) {
             Scene.HOME -> {
-                if (!driving) HomeCenter(ui, a)
+                if (driving) DriveE(a) else HomeCenter(ui, a)
                 AskSlot(ui, driving, song, a)
             }
             Scene.DRIVE -> {
+                DriveE(a)
                 // 쉼터 카드는 쉼터를 묻는 동안만. 그 위에 확인 카드(Q_)가 뜨면 같은 자리에 그 카드를 그린다: 쉼터 카드만 그려 확인 카드가 보이지 않았고,
                 // 쉼터에 답한다고 한 "응"이 보이지 않는 카드로 갔다. 묻는 것이 없으면 쉼터 카드의 죽은 단추 대신 달리는 동안의 판(11/08 오류 점검 A4·E1)
                 val at = Modifier.align(Alignment.BottomStart)
@@ -276,17 +302,14 @@ fun SceneFront(scene: Scene, ui: StageUi, song: Song, pos: () -> Long, level: ()
     }
 }
 
-/** 5 → "5°", −3 → "−3°" */
-private fun deg(v: Float) = v.roundToInt().let { (if (it < 0) "−" else "") + "${kotlin.math.abs(it)}°" }
+// ── 1. 첫 화면(P): 큰 단추 둘([긴급]·[프렌드])과 같은 모양의 단추 넷(11/05 큰 틀: 얼굴은 E. 11/09 사용자 "담백하게": 누르는 것만 판으로) ──
 
-// ── 1. 첫 화면(P): 가운데는 '급할 때'(11/05 큰 틀: 얼굴은 E, 매일은 말할 때 고르기) ──
-
-/** 세워 둔 첫 화면에서 '급할 때' 판 자리를 차지하는 물음: 혹시 사고·다시 앉음·고속도로 정차(검토 11/06: 차가 먼저 알아챈 순간이 평범한 카드로 판 아래에 작게 떴다) */
+/** 세워 둔 첫 화면에서 큰 단추 자리를 차지하는 물음: 혹시 사고·다시 앉음·고속도로 정차(검토 11/06: 차가 먼저 알아챈 순간이 평범한 카드로 판 아래에 작게 떴다) */
 private val BIG_ASKS = setOf("BUMP", "BUMPBACK", "HSTOP")
 
 /**
- * 세워 둔 첫 화면의 가운데: 평소에는 '급할 때' 판, 차가 먼저 알아챈 물음(BIG_ASKS)이 떠 있는 동안은 그 자리에서 아래 위젯 자리까지 크게.
- * 물음이 끝나면 '급할 때' 판으로 돌아온다(옅게 바뀐다)
+ * 세워 둔 첫 화면의 가운데: 평소에는 큰 단추 둘, 차가 먼저 알아챈 물음(BIG_ASKS)이 떠 있는 동안은 그 자리에서 아래 단추 자리까지 크게.
+ * 물음이 끝나면 큰 단추로 돌아온다(옅게 바뀐다)
  */
 @Composable
 private fun HomeCenter(ui: StageUi, a: Acts) {
@@ -297,31 +320,152 @@ private fun HomeCenter(ui: StageUi, a: Acts) {
         transitionSpec = { fadeIn(tween(280)) togetherWith fadeOut(tween(160)) },
         label = "homeCenter",
     ) { big ->
-        // 판들은 제 높이(HomeE 440)로 서야 한다. AnimatedContent는 꽉 찬 크기를 최소값으로 넘겨 height(440)이 화면 끝까지 늘어났다(11/07 시험: 아래 위젯과 겹침). Box가 최소값을 풀어 준다
-        Box(Modifier.fillMaxSize()) { if (big == null) HomeE(ui, a) else BigAsk(ui, big) }
+        // 판들은 제 높이(HomeMain 420)로 서야 한다. AnimatedContent는 꽉 찬 크기를 최소값으로 넘겨 height가 화면 끝까지 늘어났다(11/07 시험: 아래 위젯과 겹침). Box가 최소값을 풀어 준다
+        Box(Modifier.fillMaxSize()) { if (big != null) BigAsk(ui, big) else HomeMain(a) }
     }
-    // 차 속도·알림 허락이 없으면 '급할 때' 판 아래 한 줄과 [설정 열기](검토 11/06). 물음 카드가 떠 있는 동안은 비킨다(아래에서 떠오르는 카드와 겹치지 않게)
-    if (ui.ask == null && (ui.speedOff || ui.notifOff)) PermLine(ui)
 }
 
-/** 허락이 없을 때의 한 줄(판 아래 740~840, 위젯 위 876 전까지). 차 속도가 먼저: 없으면 혹시 사고가 조용히 꺼진다 */
+/**
+ * 첫 화면의 큰 단추 둘(11/09 사용자 "말이 많다, 어디를 눌러야 할지 한눈에 보이지 않는다"): [긴급]과 [프렌드]. 위 막대의 같은 단추는 이때 뺀다(SceneTop).
+ * 설명만 있던 판(부르지 않아도 먼저, 119에 말할 위치, 말할 때 고르기 한 줄)은 뺐다. 위치는 E 화면의 걸음마다 크게 나온다. 빨강은 [긴급] 하나에만
+ */
 @Composable
-private fun PermLine(ui: StageUi) {
-    val speed = ui.speedOff
-    val shape = sq(40)
-    Row(
-        Modifier.padding(start = 72.dp, end = 72.dp, top = 740.dp).fillMaxWidth().height(100.dp).clip(shape)
-            .background(C.Amber.copy(alpha = .12f)).border(1.dp, C.Amber.copy(alpha = .3f), shape).padding(start = 40.dp, end = 14.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp),
+private fun HomeMain(a: Acts) {
+    // 위 316부터: 알림·듣는 중 캡슐(160~256)과 그 아래 예시 말 줄(~306)을 가리지 않는다. 아래 끝 736: 두 줄짜리 물음 카드(위 끝 약 737)와 닿지 않는다
+    Row(Modifier.padding(start = 72.dp, end = 72.dp, top = 316.dp).fillMaxWidth().height(420.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+        BigTile(PhosphorIcons.Duotone.Warning, "긴급", "사고·고장·갑자기 아플 때", danger = true, modifier = Modifier.weight(1.25f), onClick = a.sos)
+        BigTile(PhosphorIcons.Duotone.Microphone, Prend.CALL, "누르고 말씀하세요", danger = false, modifier = Modifier.weight(1f), onClick = a.friend)
+    }
+}
+
+/**
+ * 큰 단추(11/09 스모크 유리): 짙은 유리 판, 왼쪽 빛줄과 번짐, 모서리 빛. 위에 두 톤 아이콘(뒤에 은은한 빛), 아래에 이름 한 단어와 짧은 한 줄.
+ * 빛은 긴급이 빨강, 프렌드가 차가운 흰빛
+ */
+@Composable
+private fun BigTile(icon: ImageVector, name: String, sub: String, danger: Boolean, modifier: Modifier, onClick: () -> Unit) {
+    val card = sq(44)
+    val light = if (danger) C.Red else Cool
+    Box(
+        modifier.fillMaxHeight().press(card, onClick = onClick).frosted(card, edge = rimOf(light, danger)).lightBar(light, danger)
+            .padding(start = 64.dp, end = 48.dp, top = 52.dp, bottom = 52.dp),
     ) {
-        Icon(PhosphorIcons.Fill.Warning, null, tint = C.Amber, modifier = Modifier.size(40.dp))
-        Text(if (speed) "차 속도를 허락해야 혹시 사고를 물을 수 있어요" else "알림을 허락해야 화면을 닫아도 물음이 떠요",
-            style = t(30, W600), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-        Btn("설정 열기", primary = true, height = 76, size = 28, pad = 36) {
-            Stage.openSettings?.invoke(if (speed) "speed" else "notif") ?: Stage.toast("차 설정의 앱 목록에서 ${Prend.NAME}를 골라 허락해 주세요", 4_000)
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            Box(Modifier.size(84.dp), contentAlignment = Alignment.CenterStart) {
+                Box(Modifier.requiredSize(170.dp).background(Brush.radialGradient(listOf(light.copy(alpha = if (danger) .30f else .20f), Color.Transparent))))
+                Icon(icon, null, tint = if (danger) C.Red else C.L1, modifier = Modifier.size(72.dp))
+            }
+            Column {
+                Text(name, style = t(84, W700, tracking = -.025))
+                Text(sub, style = t(31, W500, C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+            }
+        }
+        Icon(PhosphorIcons.Regular.ArrowUpRight, null, tint = C.L2b, modifier = Modifier.align(Alignment.TopEnd).size(40.dp))
+    }
+}
+
+/** 프렌드 쪽의 차가운 흰빛 */
+private val Cool = Color(0xFFB8C8FF)
+
+/**
+ * 첫 화면의 아래: 같은 모양의 단추 넷과, 지금 이어지는 일이 있을 때만 그 위에 한 줄(HomeNow). 색은 넣지 않는다(흰 아이콘과 이름).
+ * 단추 이름은 누르면 나오는 것 그대로(11/09 사용자 "같이 고르기·차 돌봄·기억을 처음 보는 사람이 알아듣겠니": 밥집·카페, 차 정비, 설정).
+ * 바깥 기온·열선, 가족 정보 칸, 연속 운전 0분 고리, [음악 틀기]는 뺐다(가족 정보는 설정에서 바꾸고, 음악은 말로 튼다)
+ */
+@Composable
+private fun HomeDock(ui: StageUi, song: Song, a: Acts, modifier: Modifier) {
+    Column(modifier.padding(start = 72.dp, end = 72.dp, bottom = 64.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+        HomeNow(ui, song, a)
+        Row(Modifier.fillMaxWidth().height(240.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
+            val nap = ui.habits.napMin.takeIf { it in setOf(10, 15, 20) } ?: 15
+            DockTile(PhosphorIcons.Duotone.MoonStars, "쪽잠 ${nap}분") { Stage.napStart(nap) }
+            DockTile(PhosphorIcons.Duotone.ForkKnife, "밥집·카페") { Stage.openPick("food") }
+            DockTile(PhosphorIcons.Duotone.Wrench, "차 정비") { Stage.openCare() }
+            DockTile(PhosphorIcons.Duotone.GearSix, "설정") { Stage.openMemo() }
         }
     }
 }
+
+/** 아래 단추 하나: 스모크 유리 판, 왼쪽 위에 두 톤 아이콘(뒤에 은은한 빛), 왼쪽 아래에 이름 */
+@Composable
+private fun RowScope.DockTile(icon: ImageVector, label: String, onClick: () -> Unit) {
+    val card = sq(36)
+    Column(
+        Modifier.weight(1f).fillMaxHeight().press(card, onClick = onClick).frosted(card).padding(horizontal = 36.dp, vertical = 34.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Box(Modifier.size(56.dp), contentAlignment = Alignment.CenterStart) {
+            Box(Modifier.requiredSize(110.dp).background(Brush.radialGradient(listOf(Color.White.copy(alpha = .10f), Color.Transparent))))
+            Icon(icon, null, tint = C.L1, modifier = Modifier.size(54.dp))
+        }
+        Text(label, style = t(33, W600), maxLines = 1)
+    }
+}
+
+/**
+ * 첫 화면 아래 단추 위의 '지금' 한 줄: 이어지는 일이 있을 때만 하나(먼저 것부터). 허락 없음 → 사고 뒤 남은 일 → 쉬는 중 → 대리 → 이번 운행 아이 →
+ * 흐르는 곡 → 막 쉼 → 연속 운전. 단추는 그 일을 끝내는 하나(사고 뒤는 전화까지 둘)
+ */
+@Composable
+private fun HomeNow(ui: StageUi, song: Song, a: Acts) {
+    val note = ui.note
+    val sleeper = ui.sleeper
+    val perm = ui.speedOff || ui.notifOff
+    val rested = ui.restedAt > 0 && ui.driveMinutes == 0
+    // 끝내는 단추가 있는 일(쉬는 중·대리·사고 뒤·아이·곡)이 먼저다. 허락 경고가 줄을 차지하면 그 단추를 누를 곳이 없어진다(11/10 검토):
+    // 그런 일이 있으면 그 줄 끝에 [허락하기]를 함께 두고, 없을 때만 허락 경고가 줄을 쓴다
+    val busy = sleeper != null || ui.daeri || note != null || ui.baby || song.playing
+    val (icon, line) = when {
+        sleeper != null -> PhosphorIcons.Fill.MoonStars to listOfNotNull("$sleeper 쉬는 중", ui.sleepWake).joinToString(" · ")
+        ui.daeri -> PhosphorIcons.Fill.SteeringWheel to "대리 운행 중 · 먼저 말 걸지 않아요"
+        // 사고 메모(언제·날씨)를 함께: "사고 메모와 보험사 번호는 첫 화면에 둘게요"라고 알린 그 줄(ride/Care)
+        note != null -> PhosphorIcons.Fill.Notepad to "사고 뒤 남은 일 · ${remember(note) { noteShort(note) }}"
+        ui.baby -> PhosphorIcons.Fill.Baby to "이번 운행 · 아이가 탔어요"
+        song.playing -> PhosphorIcons.Fill.MusicNotes to song.title
+        perm -> PhosphorIcons.Fill.Warning to (if (ui.speedOff) "차 속도를 허락해야 혹시 사고를 물을 수 있어요" else "알림을 허락해야 화면을 닫아도 물음이 떠요")
+        rested -> PhosphorIcons.Fill.Coffee to "방금 15분 쉬셨어요"
+        ui.driveMinutes > 0 -> PhosphorIcons.Fill.SteeringWheel to "연속 운전 ${hm(ui.driveMinutes)}"
+        else -> return
+    }
+    val warn = perm && !busy
+    val tint = when { warn -> C.Amber; rested && !busy -> C.Mint; else -> C.L1 }
+    val allow = {
+        Stage.openSettings?.invoke(if (ui.speedOff) "speed" else "notif") ?: Stage.toast("차 설정의 앱 목록에서 ${Prend.NAME}를 골라 허락해 주세요", 4_000)
+    }
+    Row(
+        Modifier.fillMaxWidth().height(96.dp).frosted(Pill).padding(start = 40.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Icon(icon, null, tint = tint, modifier = Modifier.size(34.dp))
+        Text(line, style = t(30, W600, if (rested && !busy && !perm) C.Mint else C.L1), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+        when {
+            sleeper != null -> NowBtn("그만 쉬기") { Stage.sleep(false) }
+            ui.daeri -> NowBtn("대리 끝") { Stage.daeri(false) }
+            note != null -> {
+                Guide.INSURERS.firstOrNull { it.name == ui.insurer }?.tel?.let { tel -> NowBtn("전화") { Stage.dial(tel) } }
+                NowBtn("다 했어요") { Stage.noteDone() }
+            }
+            ui.baby -> NowBtn("끄기") { Stage.baby(false) }
+            song.playing -> NowBtn("멈춤", onClick = a.playPause)
+        }
+        // 허락이 없으면 [허락하기](앱의 [설정]과 헷갈리지 않게 '설정 열기'라 하지 않는다). 다른 일의 줄이면 그 끝에 작게 함께
+        if (perm) NowBtn("허락하기", primary = true, onClick = allow)
+    }
+}
+
+/** 첫 화면 줄의 사고 메모(장소 없이 짧게): 오늘·어제는 날짜 대신 그 말로("어제 오전 8:29 · 낮 · 12°C") */
+private fun noteShort(n: CrashNote): String {
+    fun midnight(ms: Long) = java.util.Calendar.getInstance().apply {
+        timeInMillis = ms
+        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    val days = ((midnight(System.currentTimeMillis()) - midnight(n.at)) / 86_400_000.0).roundToInt()
+    val day = when (days) { 0 -> "오늘"; 1 -> "어제"; else -> SimpleDateFormat("M월 d일", Locale.KOREA).format(Date(n.at)) }
+    return listOfNotNull("$day ${SimpleDateFormat("a h:mm", Locale.KOREA).format(Date(n.at))}", n.weather).joinToString(" · ")
+}
+
+@Composable
+private fun NowBtn(label: String, primary: Boolean = false, onClick: () -> Unit) = Btn(label, primary = primary, height = 72, size = 27, pad = 36, onClick = onClick)
 
 /**
  * 차가 먼저 알아챈 물음을 크게: 붉은 판, 큰 제목, 꼭 알아야 할 줄(고속도로 대피·견인 번호)은 큰 글씨로, 큰 단추 둘과 듣는 중 고리.
@@ -354,6 +498,8 @@ private fun BigAsk(ui: StageUi, ask: Ask) {
                 evac -> Text(ask.text, style = t(52, W700, tracking = -.025, line = 1.15), modifier = Modifier.padding(top = 30.dp))
                 else -> Text(ask.text, style = t(34, W500, C.L2), modifier = Modifier.padding(top = 24.dp))
             }
+            // 왜 묻는지: 차가 알아챈 것을 차례로(ride/Bump. 비상등을 읽는 차는 그 사이에 비상등도 보지만, 셋은 어느 차에서나 맞다). 외부 검토 11/10
+            if (ask.id == "BUMP" && !evac) SignalChain(listOf(PhosphorIcons.Duotone.Gauge to "급제동", PhosphorIcons.Duotone.HandPalm to "멈춤", PhosphorIcons.Duotone.DoorOpen to "운전석 문 열림"))
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             // 사고 쪽 대답은 빨간 단추(한 화면에 하나). 고속도로 정차의 [고장 났어요]는 흰 단추
@@ -364,234 +510,24 @@ private fun BigAsk(ui: StageUi, ask: Ask) {
     }
 }
 
-/**
- * 세워 둔 첫 화면의 가운데. 왼쪽 큰 판을 누르면 E 첫 화면([긴급]과 같다), 오른쪽은 부르지 않아도 PREND가 먼저 알아채는 셋과 119에 말할 위치,
- * 맨 아래에 말할 때 고르기 한 줄. 위치 줄은 10초마다 바뀌어 앞 층에 둔다(바탕 층이면 유리 판이 그때마다 다시 흐려진다)
- */
+/** 차가 알아챈 것: 옅은 머리 한 줄과 신호 칩을 화살표로 이어서 */
 @Composable
-private fun HomeE(ui: StageUi, a: Acts) {
-    Row(Modifier.padding(start = 72.dp, end = 72.dp, top = 276.dp).fillMaxWidth().height(440.dp), horizontalArrangement = Arrangement.spacedBy(24.dp)) {
-        val card = sq(56)
-        Box(Modifier.weight(1.5f).fillMaxHeight().press(card, onClick = a.sos).frosted(card).border(2.dp, C.Red.copy(alpha = .45f), card)) {
-            Column(Modifier.fillMaxSize().padding(horizontal = 56.dp, vertical = 48.dp), verticalArrangement = Arrangement.SpaceBetween) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    IconTile(PhosphorIcons.Fill.Warning, C.Red, C.Red.copy(alpha = .16f), 96, 30, 52)
-                    Text("급할 때", style = t(34, W700, C.Red))
-                }
-                Column {
-                    Text("사고·고장·갑자기 아플 때\n여기를 누르세요", style = t(66, W800, tracking = -.035, line = 1.12))
-                    Text("무엇부터 할지 한 걸음씩 말해 드려요", style = t(30, color = C.L2), modifier = Modifier.padding(top = 18.dp))
-                }
-            }
-            Icon(PhosphorIcons.Regular.CaretRight, null, tint = C.L3, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 44.dp).size(72.dp))
-        }
-        // 맨 아래(위치 줄 뒤)에 늘 같은 한 줄('깜빡이·후진·회전 앞에선 말을 미뤄요')을 두려고 위아래 여백을 40 → 34로
-        Column(Modifier.weight(1f).fillMaxHeight().frosted(card).padding(horizontal = 44.dp, vertical = 34.dp), verticalArrangement = Arrangement.SpaceBetween) {
-            Text("부르지 않아도 먼저", style = t(26, W600, C.L2b))
-            // 차가 먼저 알아채는 셋(별첨 C 3: 급제동 뒤 멈춤·에어백·고속도로 위 정차). '운전하다 아프면'은 사람이 눌러야 시작해 뺐다(검토 11/06).
-            // 첫 줄은 조건을 다 적는다(급제동할 때마다 묻는 것이 아니다, ride/Bump)
-            listOf(
-                PhosphorIcons.Fill.CarProfile to "급제동 뒤 서서 문을 열면\n혹시 사고인지 물어요",
-                PhosphorIcons.Fill.Warning to "고속도로에 서면\n대피부터 알려요",
-                PhosphorIcons.Fill.Siren to "에어백이 터지면\n블루링크 통화 뒤 이어서 안내해요",
-            ).forEach { (icon, line) ->
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
-                    Icon(icon, null, tint = C.L2, modifier = Modifier.size(34.dp))
-                    Text(line, style = t(26, W500, C.L1, line = 1.2))
-                }
-            }
-            // 이름표와 위치를 두 줄로: 고속도로 이정("○○고속도로 ○○ 방향 144.6km 지점")이 잘리지 않게(검토 11/05)
-            Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-                Icon(PhosphorIcons.Fill.MapPin, null, tint = C.L2b, modifier = Modifier.padding(top = 2.dp).size(28.dp))
-                Column {
-                    Text("119에 말할 위치", style = t(22, W600, C.L2b))
-                    // 위치가 둘이면(고속도로인지 애매: 동네 한 줄 + "고속도로 위라면 …km") 이정 숫자가 잘리지 않게 한 줄 더, 글은 조금 작게(11/08 에뮬레이터: "…일산 방…"에서 잘림)
-                    val both = Guide.placeBoth(ui.place)
-                    Text(ui.place ?: "찾는 중이에요", style = t(if (both) 22 else 24, W500, C.L1), maxLines = if (both) 3 else 2, overflow = TextOverflow.Ellipsis)
-                }
-            }
-            // 말할 때 고르기를 늘 같은 한 줄로(사용자 결정 11/06). 말을 삼키는 그 순간에는 글을 띄우지 않는다(가장 바쁠 때 눈을 끌지 않게)
-            Text("깜빡이·후진·회전 앞에선 말을 미뤄요", style = t(24, W500, C.L2))
-        }
-    }
-}
-
-/** 곡 표지. 다른 음악 앱의 곡은 그 앱이 준 표지를, 없으면 음표 판을 쓴다 */
-@Composable
-private fun SongCover(song: Song, s: Dp) {
-    if (!song.other) { Cover(s); return }
-    val shape = sq((s.value * .12f).toInt())
-    Box(
-        Modifier.size(s).clip(shape).background(Color.White.copy(alpha = .08f)).border(1.dp, Color.White.copy(alpha = .12f), shape),
-        contentAlignment = Alignment.Center,
-    ) {
-        val art = song.art
-        if (art != null) Image(art, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        else Icon(PhosphorIcons.Fill.MusicNotes, null, tint = C.L2, modifier = Modifier.size(s * .32f))
-    }
-}
-
-/** 곡 버튼: 아이콘은 그대로 두고 누름 칸만 96으로(앞뒤 56·재생 84 아이콘이 작은 칸이 되지 않게) */
-@Composable
-private fun Tap(icon: ImageVector, size: Int, onClick: () -> Unit) {
-    Box(Modifier.size(96.dp).press(CircleShape, onClick = onClick), contentAlignment = Alignment.Center) {
-        Icon(icon, null, tint = C.L1, modifier = Modifier.size(size.dp))
-    }
-}
-
-/** 첫 화면 위젯. 새로 배운 것은 알림과 기억 화면의 '바뀜'으로만 알린다(위젯 위의 '새로 기억함' 줄은 뺐다, 검토-방향노인초보 2-2) */
-@Composable
-private fun HomeWidgets(ui: StageUi, song: Song, a: Acts, modifier: Modifier) {
-    Column(modifier.padding(start = 72.dp, end = 72.dp, bottom = 64.dp).fillMaxWidth()) {
-        HomeWidgetRow(ui, song, a)
-    }
-}
-
-@Composable
-private fun HomeWidgetRow(ui: StageUi, song: Song, a: Acts) {
-    Row(
-        Modifier.fillMaxWidth().height(270.dp),
-        horizontalArrangement = Arrangement.spacedBy(24.dp),
-    ) {
-        val card = sq(56)
-        // 연속 운전(P로 15분 쉬면 0): 두 시간이면 쉼터를 알려 준다(고리는 두 시간 중 얼마나 왔나). 한 시간 넘게 달린 뒤 막 쉬었으면 그 말을 민트로
-        Box(Modifier.weight(1.25f).fillMaxHeight().frosted(card)) {
-            Column(Modifier.padding(horizontal = 38.dp, vertical = 34.dp)) {
-                WidgetHead(PhosphorIcons.Fill.SteeringWheel, "연속 운전", C.Mint)
-                DriveTime(ui.driveMinutes, 68, Modifier.padding(top = 18.dp))
-                val rested = ui.restedAt > 0 && ui.driveMinutes == 0
-                Text(if (rested) "방금 15분 쉬셨어요" else "2시간이면 쉼터를 알려 드려요", style = t(24, color = if (rested) C.Mint else C.L2), modifier = Modifier.padding(top = 10.dp).fillMaxWidth(.66f))
-            }
-            Box(Modifier.align(Alignment.CenterEnd).padding(end = 38.dp)) { Ring((ui.driveMinutes / 120f).coerceIn(0f, 1f), 132.dp, 12.dp, C.Mint) }
-        }
-        // 둘째 칸: 위는 바깥(기온과 차가 해 둔 일, 누르면 기억 화면), 아래는 따로 떼어 낸 가족 정보 칸(사용자 결정 11/06: 날씨 옆에 있어 '오늘 아이가 탔다'로 읽혔다)
-        Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            OutsideTile(ui, Modifier.weight(1f).fillMaxWidth().press(card) { Stage.openMemo() }.frosted(card))
-            KidsTile(ui, Modifier.fillMaxWidth().height(96.dp))
-        }
-        // 음악 칸은 뺐다(검토 11/07, 사용자 "추천대로": 세워 둔 첫 화면 아래 줄의 곡 칸이 급할 때 앱에 군더더기로 읽혔다). 틀기·멈춤은 '그 밖에' 칸 안에.
-        // 셋째 칸: 잘래요 중이면 그 칸, 대리 운행이면 대리 칸, 사고 메모가 있으면 사고 뒤 남은 일, 아니면 '그 밖에'(쪽잠·같이 고르기·차 돌봄·음악).
-        // 기억 화면은 둘째 칸(바깥)이 연다
-        val sleeper = ui.sleeper
-        when {
-            sleeper != null -> Column(Modifier.weight(1.25f).fillMaxHeight().frosted(card).padding(horizontal = 38.dp, vertical = 34.dp)) {
-                WidgetHead(PhosphorIcons.Fill.MoonStars, "잘래요", C.Lilac)
-                Text("$sleeper 쉬는 중", style = t(24, W600, C.LilacInk), modifier = Modifier.padding(top = 12.dp))
-                ui.sleepWake?.let { Text(it, style = t(24, color = C.L2), modifier = Modifier.padding(top = 6.dp)) }
-                Spacer(Modifier.weight(1f))
-                Chip("그만 쉬기", C.Lilac, Modifier.fillMaxWidth()) { Stage.sleep(false) }
-            }
-            ui.daeri -> DaeriWidget(Modifier.weight(1.25f).fillMaxHeight().frosted(card))
-            ui.note != null -> AfterWidget(ui, Modifier.weight(1.25f).fillMaxHeight().frosted(card))
-            else -> Column(Modifier.weight(1.25f).fillMaxHeight().frosted(card).padding(horizontal = 38.dp, vertical = 34.dp)) {
-                WidgetHead(PhosphorIcons.Fill.DotsThreeCircle, "그 밖에", C.Sky)
-                Spacer(Modifier.weight(1f))
-                val nap = ui.habits.napMin.takeIf { it in setOf(10, 15, 20) } ?: 15
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Chip("쪽잠 ${nap}분", C.Lilac, Modifier.weight(1f), height = 70, size = 25) { Stage.napStart(nap) }
-                    Chip("같이 고르기", C.Sky, Modifier.weight(1f), height = 70, size = 25) { Stage.openPick("food") }
-                }
-                Row(Modifier.padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Chip("차 돌봄", C.Amber, Modifier.weight(1f), height = 70, size = 25) { Stage.openCare() }
-                    Chip(if (song.playing) "음악 멈춤" else "음악 틀기", C.L2, Modifier.weight(1f), height = 70, size = 25, onClick = a.playPause)
+private fun SignalChain(signals: List<Pair<ImageVector, String>>) {
+    Column(Modifier.padding(top = 44.dp)) {
+        Text("차가 알아챈 것", style = t(24, W600, C.L2b))
+        Row(Modifier.padding(top = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            signals.forEachIndexed { i, (icon, label) ->
+                if (i > 0) Icon(PhosphorIcons.Regular.CaretRight, null, tint = C.L3, modifier = Modifier.size(30.dp))
+                Row(
+                    Modifier.height(72.dp).clip(Pill).background(Color.White.copy(alpha = .08f)).border(1.dp, rimOf(), Pill).padding(horizontal = 26.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    Icon(icon, null, tint = C.L1, modifier = Modifier.size(34.dp))
+                    Text(label, style = t(28, W600))
                 }
             }
         }
     }
-}
-
-/** 바깥 칸(첫 화면 둘째 칸의 위): 기온과 그 옆의 운전석 열선·통풍 단계. 칸 전체가 기억 화면을 연다 */
-@Composable
-private fun OutsideTile(ui: StageUi, modifier: Modifier) {
-    Column(modifier.padding(horizontal = 38.dp, vertical = 22.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // 온도계는 기온을 따른다: 15° 넘으면 더운 빨강 쪽, 5° 아래면 찬 하늘색, 그 사이는 무채색
-            val c = ui.outsideC
-            val (thermo, warm) = when {
-                c == null -> PhosphorIcons.Fill.Thermometer to C.L2
-                c >= 15 -> PhosphorIcons.Fill.ThermometerHot to C.Amber
-                c < 5 -> PhosphorIcons.Fill.ThermometerCold to C.Sky
-                else -> PhosphorIcons.Fill.Thermometer to C.L2
-            }
-            WidgetHead(thermo, "바깥", warm)
-            Spacer(Modifier.weight(1f))
-            Text("기억", style = t(24, W600, C.L2b))
-            Icon(PhosphorIcons.Regular.CaretRight, null, tint = C.L2b, modifier = Modifier.size(26.dp))
-        }
-        // 기온과, 그 옆에 차가 알려 주는 운전석 열선·통풍 단계(사람이 버튼으로 켠 것도 보인다). 칸이 낮아져 한 줄에 둔다
-        Row(Modifier.padding(top = 6.dp).fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text(ui.outsideC?.let { (if (it < 0) "−" else "") + "${kotlin.math.abs(it)}°" } ?: "—", style = t(60, W600, tracking = -.03).copy(fontFeatureSettings = tnum))
-            Spacer(Modifier.weight(1f))
-            val heat = ui.heat ?: 0
-            // 통풍 단계, 또는 시트 온도의 음수(냉방)
-            val cool = maxOf(ui.vent ?: 0, -heat)
-            if (heat > 0 || cool > 0) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Icon(if (heat > 0) PhosphorIcons.Regular.Flame else PhosphorIcons.Regular.Fan, null, tint = if (heat > 0) C.Amber else C.Sky, modifier = Modifier.size(24.dp))
-                Text(if (heat > 0) "열선 ${heat}단" else "통풍 ${cool}단", style = t(22, color = C.L2), maxLines = 1)
-            }
-        }
-    }
-}
-
-/**
- * 가족 정보 칸(첫 화면 둘째 칸의 아래, 사용자 결정 11/06: 바깥 칸에서 떼어 늘 그대로인 정보임을 보인다). "아이가 있어요"를 체크해 두면
- * 사고 때 뒷좌석에 아이가 있는지 살피라고 알린다(처음 한 번 묻고, 여기와 기억 화면에서 바꾼다). "아이 탔어"·"애 잔다"로 이번 운행만 켠
- * 아이 탑승이면 머리가 '이번 운행'으로 바뀌고, 누르면 아이 탑승을 끈다
- */
-@Composable
-private fun KidsTile(ui: StageUi, modifier: Modifier) {
-    val kids = ui.kids == true
-    val on = ui.baby || kids
-    val shape = sq(56)
-    Row(
-        modifier.press(shape) { if (ui.baby) Stage.baby(false) else Stage.kids(!kids) }.clip(shape)
-            .background(if (on) C.Lilac.copy(alpha = .20f) else Color.White.copy(alpha = .06f))
-            .border(1.dp, if (on) C.Lilac.copy(alpha = .4f) else Color.White.copy(alpha = .12f), shape)
-            .padding(horizontal = 30.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
-    ) {
-        Icon(if (on) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square, null, tint = if (on) C.LilacInk else C.L2, modifier = Modifier.size(36.dp))
-        Column {
-            Text(if (ui.baby) "이번 운행" else "가족 정보", style = t(20, W600, if (on) C.LilacInk else C.L2b), maxLines = 1)
-            Text(if (ui.baby) "아이가 탔어요" else "아이가 있어요", style = t(26, W700, if (on) C.L1 else C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis)
-        }
-    }
-}
-
-/** 대리 운행 칸: 이번 운행에 하는 것 한 줄과 [대리 끝](기사님이 내리면 주인이 끈다. 시동을 끄면 저절로 풀린다) */
-@Composable
-private fun DaeriWidget(modifier: Modifier) {
-    Column(modifier.padding(horizontal = 38.dp, vertical = 34.dp)) {
-        WidgetHead(PhosphorIcons.Fill.SteeringWheel, "대리 운행", C.Lilac)
-        Text("먼저 말 걸지 않고 음악은 낮게 깔아요", style = t(24, color = C.L2), modifier = Modifier.padding(top = 12.dp))
-        Spacer(Modifier.weight(1f))
-        Chip("대리 끝", C.Lilac, Modifier.fillMaxWidth()) { Stage.daeri(false) }
-    }
-}
-
-/** 사고 뒤 남은 일: 보험 접수와 블랙박스 영상, 사고 메모 한 줄, [전화]·[다 했어요] */
-@Composable
-private fun AfterWidget(ui: StageUi, modifier: Modifier) {
-    val note = ui.note ?: return
-    val tel = Guide.INSURERS.firstOrNull { it.name == ui.insurer }?.tel
-    Column(modifier.padding(horizontal = 38.dp, vertical = 34.dp)) {
-        WidgetHead(PhosphorIcons.Fill.Notepad, "사고 뒤 남은 일", C.Amber)
-        Text("보험 접수 · 영상 저장", style = t(24, color = C.L2), modifier = Modifier.padding(top = 12.dp))
-        Text(remember(note) { noteShort(note) }, style = t(24, color = C.L2b), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-        Spacer(Modifier.weight(1f))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            if (tel != null) Chip("전화", C.Amber, Modifier.weight(1f)) { Stage.dial(tel) }
-            Chip("다 했어요", C.Amber, Modifier.weight(1f)) { Stage.noteDone() }
-        }
-    }
-}
-
-@Composable
-private fun Chip(label: String, tint: Color, modifier: Modifier, height: Int = 80, size: Int = 28, onClick: () -> Unit) {
-    Box(
-        modifier.height(height.dp).press(sq(26), onClick = onClick).clip(sq(26)).background(tint.copy(alpha = .16f)).border(1.dp, tint.copy(alpha = .22f), sq(26)),
-        contentAlignment = Alignment.Center,
-    ) { Text(label, style = t(size, W600, tint), maxLines = 1) }
 }
 
 /** 연속 운전 시간: 큰 숫자와 작은 단위("1시간 12분"). 첫 화면 위젯과 달리는 동안의 판이 같이 쓴다 */
@@ -613,17 +549,6 @@ private fun DriveTime(minutes: Int, size: Int, modifier: Modifier = Modifier) {
 /** 사고 메모 한 줄: "10월 27일 오후 2:05 · 서울 강남구 … · 낮 · 12°C". 날짜 형식을 매번 만들지 않게 부르는 곳은 메모가 바뀔 때만 부른다 */
 private fun noteLine(n: CrashNote, withPlace: Boolean = true): String =
     listOfNotNull(SimpleDateFormat("M월 d일 a h:mm", Locale.KOREA).format(Date(n.at)), n.place?.takeIf { withPlace }, n.weather).joinToString(" · ")
-
-/** 첫 화면 위젯의 사고 메모(장소 없이 짧게): 오늘·어제는 날짜 대신 그 말로("어제 오전 8:29 · 낮 · 12°C") */
-private fun noteShort(n: CrashNote): String {
-    fun midnight(ms: Long) = java.util.Calendar.getInstance().apply {
-        timeInMillis = ms
-        set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0); set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
-    }.timeInMillis
-    val days = ((midnight(System.currentTimeMillis()) - midnight(n.at)) / 86_400_000.0).roundToInt()
-    val day = when (days) { 0 -> "오늘"; 1 -> "어제"; else -> SimpleDateFormat("M월 d일", Locale.KOREA).format(Date(n.at)) }
-    return listOfNotNull("$day ${SimpleDateFormat("a h:mm", Locale.KOREA).format(Date(n.at))}", n.weather).joinToString(" · ")
-}
 
 // ── 첫 화면 위젯 자리에서 묻는 것: 가족 정보, 혹시 사고, 사고 뒤 한 번 ──
 
@@ -657,7 +582,7 @@ private fun BoxScope.AskSlot(ui: StageUi, driving: Boolean, song: Song, a: Acts)
         Box(Modifier.fillMaxSize()) {
             val at = Modifier.align(Alignment.BottomStart)
             when {
-                ask == null -> if (driving) DrivePlate(ui, at) else HomeWidgets(ui, song, a, at)
+                ask == null -> if (driving) DrivePlate(ui, at) else HomeDock(ui, song, a, at)
                 driving -> DriveAsk(ui, ask, at)
                 // 세워 둔 동안의 혹시 사고·고속도로 정차는 '급할 때' 판 자리에서 이 자리까지 크게(HomeCenter). 위젯은 그동안 비킨다
                 ask.id in BIG_ASKS -> Unit
@@ -677,16 +602,16 @@ private fun askLook(ask: Ask): Triple<ImageVector, Color, String> = when (ask.id
     "NAP" -> Triple(PhosphorIcons.Fill.MoonStars, C.Lilac, "쪽잠")
     "SLEEP" -> Triple(PhosphorIcons.Fill.MoonStars, C.Lilac, "잘래요")
     "FOG" -> Triple(PhosphorIcons.Regular.Fan, C.Sky, "김서림")
-    "HOUR" -> Triple(PhosphorIcons.Fill.Coffee, C.Mint, "한 시간")
-    "HAUTO" -> Triple(PhosphorIcons.Fill.Wind, C.Sky, "기억대로")
-    "QUIET" -> Triple(PhosphorIcons.Fill.SpeakerSimpleSlash, C.Lilac, "기억대로")
+    "HOUR" -> Triple(PhosphorIcons.Fill.Coffee, C.Mint, "한 시간 운전")
+    "HAUTO" -> Triple(PhosphorIcons.Fill.Wind, C.Sky, "지난번처럼")
+    "QUIET" -> Triple(PhosphorIcons.Fill.SpeakerSimpleSlash, C.Lilac, "지난번처럼")
     "SPOT" -> Triple(PhosphorIcons.Fill.MapPin, C.Sky, "주차 자리")
     "DAERI" -> Triple(PhosphorIcons.Fill.SteeringWheel, C.Lilac, "대리 운행")
-    "TALK" -> Triple(PhosphorIcons.Regular.Microphone, C.Mint, "이야기에 비켜 서기")
+    "TALK" -> Triple(PhosphorIcons.Regular.Microphone, C.Mint, "대화 중엔 소리 낮추기")
     "AFTER" -> Triple(PhosphorIcons.Fill.Notepad, C.Amber, "사고 뒤")
-    "PICK" -> Triple(PhosphorIcons.Fill.ForkKnife, C.Sky, "같이 고르기")
+    "PICK" -> Triple(PhosphorIcons.Fill.ForkKnife, C.Sky, "밥집·카페")
     "JAM" -> Triple(PhosphorIcons.Fill.Lamp, C.Amber, "오래 막히는 길")
-    "CARE" -> Triple(PhosphorIcons.Regular.Wrench, C.Amber, "차 돌봄")
+    "CARE" -> Triple(PhosphorIcons.Regular.Wrench, C.Amber, "차 정비")
     "ALLEY" -> Triple(PhosphorIcons.Fill.MapPin, C.Sky, "골목 목적지")
     "DUSK" -> if ("예보" in ask.title) Triple(PhosphorIcons.Fill.CloudRain, C.Sky, "출발 전") else Triple(PhosphorIcons.Fill.MoonStars, C.Amber, "출발 전")
     "SLOW" -> Triple(PhosphorIcons.Regular.Microphone, C.Mint, "천천히 말하기")
@@ -697,9 +622,9 @@ private fun askLook(ask: Ask): Triple<ImageVector, Color, String> = when (ask.id
     "RIGHT" -> Triple(PhosphorIcons.Fill.ArrowBendUpRight, C.Amber, "우회전")
     // 기억대로 한 일: 한 일에 맞는 아이콘(열선·통풍·무드등)
     "AUTO" -> when {
-        ask.title.startsWith("열선") -> Triple(PhosphorIcons.Regular.Flame, C.Amber, "기억대로")
-        ask.title.startsWith("통풍") -> Triple(PhosphorIcons.Regular.Fan, C.Sky, "기억대로")
-        else -> Triple(PhosphorIcons.Fill.Lamp, C.Amber, "기억대로")
+        ask.title.startsWith("열선") -> Triple(PhosphorIcons.Regular.Flame, C.Amber, "지난번처럼")
+        ask.title.startsWith("통풍") -> Triple(PhosphorIcons.Regular.Fan, C.Sky, "지난번처럼")
+        else -> Triple(PhosphorIcons.Fill.Lamp, C.Amber, "지난번처럼")
     }
     else -> Triple(PhosphorIcons.Fill.Notepad, C.Amber, Prend.NAME)
 }
@@ -726,8 +651,9 @@ private fun AskCard(ui: StageUi, ask: Ask, modifier: Modifier) {
 @Composable
 private fun WidgetHead(icon: ImageVector, label: String, color: Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Icon(icon, null, tint = color, modifier = Modifier.size(28.dp))
-        Text(label, style = t(24, W600, color))
+        // 머리는 색 없이 옅은 글로(11/09 담백하게: 칸마다 다른 색 머리가 무지개처럼 보였다). color는 부르는 곳의 뜻을 적어 두려고 남긴다
+        Icon(icon, null, tint = C.L2, modifier = Modifier.size(28.dp))
+        Text(label, style = t(24, W600, C.L2))
     }
 }
 
@@ -740,16 +666,19 @@ private fun WidgetHead(icon: ImageVector, label: String, color: Color) {
  */
 @Composable
 private fun DriveE(a: Acts) {
+    // 11/09 스모크 유리: 첫 화면 [긴급]과 같은 판(왼쪽 빨간 빛줄, 모서리 빛). 앞 층에 둔다(바탕 층에 두면 유리가 저를 비춘다)
+    val card = sq(44)
     Row(
-        Modifier.padding(start = 72.dp, end = 72.dp, top = 260.dp).fillMaxWidth().press(sq(44), onClick = a.sos).padding(vertical = 16.dp),
+        Modifier.padding(start = 72.dp, end = 72.dp, top = 316.dp).fillMaxWidth().height(230.dp)
+            .press(card, onClick = a.sos).frosted(card, edge = rimOf(C.Red, true)).lightBar(C.Red, true).padding(start = 64.dp, end = 52.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconTile(PhosphorIcons.Fill.Warning, C.Red, C.Red.copy(alpha = .16f), 140, 44, 76)
-        Column(Modifier.weight(1f).padding(start = 48.dp, end = 40.dp)) {
-            Text("급할 때는 여기를 누르세요", style = t(56, W700, tracking = -.03), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("사고로 멈춰 서면 ${Prend.NAME}가 먼저 물어요", style = t(30, W500, C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
+        IconTile(PhosphorIcons.Duotone.Warning, C.Red, Color.Transparent, 110, 0, 80)
+        Column(Modifier.weight(1f).padding(start = 40.dp, end = 40.dp)) {
+            Text("긴급", style = t(76, W700, tracking = -.025), maxLines = 1)
+            Text("사고·고장·갑자기 아플 때", style = t(32, W500, C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
         }
-        Icon(PhosphorIcons.Regular.CaretRight, null, tint = C.L3, modifier = Modifier.padding(end = 12.dp).size(72.dp))
+        Icon(PhosphorIcons.Regular.ArrowUpRight, null, tint = C.L2b, modifier = Modifier.size(44.dp))
     }
 }
 
@@ -894,7 +823,7 @@ private fun AutoCard(ui: StageUi, ask: Ask, modifier: Modifier) {
     Column(modifier.padding(start = 72.dp, end = 72.dp, bottom = 72.dp).fillMaxWidth().frosted(sq(56)).glowOnce(tint, sq(56)).padding(horizontal = 56.dp, vertical = 40.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
             IconTile(icon, tint, tint.copy(alpha = .18f), 54, 17, 30)
-            Text("기억대로", style = t(26, W600, C.Mint))
+            Text(askLook(ask).third, style = t(26, W600, C.Mint))
             Text(ask.text, style = t(26, color = C.L2))
         }
         Text("${ask.title}.", style = t(48, W700, tracking = -.03, line = 1.2), modifier = Modifier.padding(top = 22.dp))
@@ -911,7 +840,7 @@ private fun AutoCard(ui: StageUi, ask: Ask, modifier: Modifier) {
 @Composable
 private fun PickHead(ui: StageUi) {
     Column(Modifier.padding(start = 72.dp, end = 72.dp, top = 196.dp)) {
-        Text("같이 고르기", style = t(84, W700, tracking = -.035))
+        Text("밥집·카페", style = t(84, W700, tracking = -.035))
         Text("${ui.pick.area ?: "지금 위치"} 근처 · 같이 보고 골라요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
     }
 }
@@ -946,9 +875,8 @@ private fun PickFront(ui: StageUi) {
         ) {
             Text("NAVER 지역·블로그 검색", style = t(24, color = C.L2b))
             Spacer(Modifier.weight(1f))
-            p.items.getOrNull(p.chosen)?.let { chosen ->
-                Text(chosen.name, style = t(32, W600, C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(end = 10.dp))
-                Btn("여기로 가요", primary = true, height = 104, size = 36, pad = 48, icon = PhosphorIcons.Regular.NavigationArrow) { Stage.pick("go") }
+            p.items.getOrNull(p.chosen)?.let {
+                Btn("내비에 넣기", primary = true, height = 104, size = 36, pad = 48, icon = PhosphorIcons.Regular.NavigationArrow) { Stage.pick("go") }
             }
         }
     }
@@ -960,8 +888,8 @@ private fun PlaceCard(no: Int, place: Place, chosen: Boolean, modifier: Modifier
     // 상호와 지점을 나눠 적는다(긴 이름이 '직영\n점'처럼 글자 가운데서 끊기지 않게)
     val (brand, branch) = remember(place.name) { splitBranch(place.name) }
     Column(
-        modifier.press(sq(48), onClick = onClick).clip(sq(48)).frosted(sq(48), if (chosen) Color(0xFF3A3A40) else Color(0xFF1E1E22), if (chosen) .75f else .45f)
-            .border(if (chosen) 3.dp else 1.dp, if (chosen) C.L1 else Color.White.copy(alpha = .10f), sq(48))
+        modifier.press(sq(48), onClick = onClick).then(if (chosen) Modifier.frosted(sq(48), Color(0xFF34353C), .78f) else Modifier.frosted(sq(48)))
+            .then(if (chosen) Modifier.border(3.dp, C.L1, sq(48)) else Modifier)
             .padding(horizontal = 34.dp, vertical = 34.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -1015,10 +943,10 @@ private fun CareHead(ui: StageUi) {
                 Text(page.whenText, style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
             }
             else -> {
-                Text("차 돌봄", style = t(84, W700, tracking = -.035))
-                val km = c.km?.let { "지금 ${"%,d".format(it)}km · " } ?: ""
-                // 값은 숫자 대신 보는 곳을 알려 준다(부품값·공임 숫자는 넣지 않음, ride/CareBook)
-                Text("${km}${c.visit?.let { "마지막 정비 $it · " } ?: ""}언제 갈고, 어디에 맡기고, 값은 어디서 보는지 알려 드려요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
+                Text("차 정비", style = t(84, W700, tracking = -.035))
+                // 아는 숫자만 한 줄(지금 거리·마지막 정비). 값은 숫자 대신 보는 곳을 항목 안에 적는다(부품값·공임 숫자는 넣지 않음, ride/CareBook)
+                val known = listOfNotNull(c.km?.let { "지금 ${"%,d".format(it)}km" }, c.visit?.let { "마지막 정비 $it" }).joinToString(" · ")
+                if (known.isNotEmpty()) Text(known, style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
             }
         }
     }
@@ -1071,8 +999,8 @@ private fun BoxScope.CareList(c: CareUi) {
 @Composable
 private fun CareCell(r: CareRow, modifier: Modifier, onClick: () -> Unit) {
     Column(
-        modifier.press(sq(44), onClick = onClick).clip(sq(44)).frosted(sq(44), Color(0xFF1E1E22), .45f)
-            .border(if (r.due) 2.dp else 1.dp, if (r.due) C.Amber.copy(alpha = .7f) else Color.White.copy(alpha = .10f), sq(44))
+        modifier.press(sq(44), onClick = onClick).frosted(sq(44))
+            .then(if (r.due) Modifier.border(2.dp, C.Amber.copy(alpha = .7f), sq(44)) else Modifier)
             .padding(horizontal = 32.dp, vertical = 26.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
@@ -1112,11 +1040,11 @@ private fun CareBox(title: String, color: Color, lines: List<String>, modifier: 
     // 엔진오일·브레이크의 '알아 둘 것'은 28sp로 13줄이라 칸(안쪽 552)을 넘어 무료 재정비 기간 줄이 잘렸다: 글을 26sp·줄 간격 1.3으로 줄이고,
     // 그래도 넘치는 항목은 칸 안에서 밀어 본다(11/08 오류 점검 E7)
     Column(
-        modifier.clip(sq(48)).frosted(sq(48), Color(0xFF1E1E22), .45f).border(1.dp, Color.White.copy(alpha = .10f), sq(48))
+        modifier.frosted(sq(48))
             .padding(horizontal = 38.dp, vertical = 34.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
-        Text(title, style = t(28, W700, color))
+        Text(title, style = t(28, W700, C.L2))
         lines.forEach { l -> Text(l, style = t(26, color = C.L1, line = 1.3)) }
     }
 }
@@ -1144,33 +1072,31 @@ private fun BoxScope.CareShops(p: Pick) {
     ) {
         Text("NAVER 지역 검색 · 예약은 마이현대 앱이나 그곳 전화로", style = t(24, color = C.L2b), modifier = Modifier.weight(1f))
         Btn("뒤로", primary = false, height = 104, size = 34, pad = 40, icon = PhosphorIcons.Regular.ArrowLeft) { Stage.care("back") }
-        p.items.getOrNull(p.chosen)?.let { Btn("여기로 가요", primary = true, height = 104, size = 36, pad = 48, icon = PhosphorIcons.Regular.NavigationArrow) { Stage.care("go") } }
+        p.items.getOrNull(p.chosen)?.let { Btn("내비에 넣기", primary = true, height = 104, size = 36, pad = 48, icon = PhosphorIcons.Regular.NavigationArrow) { Stage.care("go") } }
     }
 }
 
-// ── 3-3. 기억(세워 둔 동안): 켜 두는 것(운전 도움·듣고 보기·조용히 가기·가족 정보·먼저 묻기·위치 보내기)과 차 돌봄, 그 밖에 적어 둔 것, 모두 잊기 ──
+// ── 3-3. 설정(세워 둔 동안): 켜고 끄는 것 한 목록, 급한 말만 하기, 먼저 물어볼 것, [배운 것]·[모두 잊기] ──
 
 @Composable
 private fun MemoHead() {
     Column(Modifier.padding(start = 72.dp, end = 72.dp, top = 196.dp)) {
-        Text("${Prend.NAME}가 기억하는 것", style = t(84, W700, tracking = -.035))
-        Text("세워 둔 동안 여기서 켜고 꺼요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
+        Text("설정", style = t(84, W700, tracking = -.035))
     }
 }
 
-/** 기억 화면 안의 '그 밖에': 쓰면서 맞춘 버릇들 */
+/** 설정 안의 '배운 것': 쓰면서 맞춘 버릇들 */
 @Composable
 private fun MemoMoreHead() {
     Column(Modifier.padding(start = 72.dp, end = 72.dp, top = 196.dp)) {
-        Text("그 밖에 기억하는 것", style = t(84, W700, tracking = -.035))
-        Text("대답하신 것을 이 차 안에 적어 두고, 다음엔 더 맞게 해요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
+        Text("${Prend.NAME}가 배운 것", style = t(84, W700, tracking = -.035))
     }
 }
 
 /**
- * 기억 화면(검토-방향노인초보 3-9·2-2): 큰 칸 몇 개로. 운전 도움·가족 정보 / 듣고 보기 / 조용히 가기·차 돌봄 / 먼저 묻기(곁들임 물음 다섯 켜고 끄기, 사용자 결정 11/06),
- * 맨 아래에 남기는 것과 [위치 보내기]·[모두 잊기]. 1706×1210(160dpi라 dp = px)에서 넘치지 않게 띠 높이(646)와 칸 폭(330·460·340, 남은 폭은 먼저 묻기)을 정해 둔다.
- * 띠 위 끝(약 388)은 제목 아래 한 줄(약 350)을 가리지 않는다. 버릇 2×2와 쪽잠·오래 막힐 때·같이 고르기 카드는 '그 밖에' 화면(먼저 묻기 칸의 [그 밖에])으로 옮겼다
+ * 설정(11/09 사용자 "모든 화면을 이렇게 담백하게"): 모양·색이 제각각이던 큰 칸 여섯을 목록 둘로. 왼쪽은 켜고 끄는 것(줄 전체가 누름 칸, 오른쪽에 스위치),
+ * 오른쪽은 급한 말만 하기([이번 운행]·[늘])와 먼저 물어볼 것. 이름은 하는 일 그대로(조용히 가기 → 급한 말만 하기, 이야기에 비켜 서기 → 대화 중엔 소리 낮추기,
+ * 먼저 묻기 → 먼저 물어볼 것, 그 밖에 → 배운 것). 차 정비 칸은 첫 화면의 [차 정비]와 같아 뺐다
  */
 @Composable
 private fun MemoFront(ui: StageUi) {
@@ -1178,144 +1104,133 @@ private fun MemoFront(ui: StageUi) {
     // 대리 운행 중엔 주인의 버릇·설정을 기사님 앞에 펼치지 않는다(매력 제안 13)
     if (ui.daeri) { MemoHidden(); return }
     if (ui.memoMore) { MemoMorePage(ui); return }
+    if (ui.insurerPick) { InsurerPage(ui); return }
     Box(Modifier.fillMaxSize()) {
-        // 앱 정보로 가는 조용한 입구(감사 F124·F125). 기억과 다른 글이라 제목 옆의 옅은 작은 버튼 하나로만.
-        // 제목 자리에 물음 띠(TopAsk)가 떠 있는 동안은 비킨다(띠 밑에서 눌리지 않게, 11/08 오류 점검 E2)
+        // 앱 정보로 가는 조용한 입구(감사 F124·F125). 제목 자리에 물음 띠(TopAsk)가 떠 있는 동안은 비킨다(띠 밑에서 눌리지 않게, 11/08 오류 점검 E2)
         if (!homeAsk(ui.ask?.id)) Box(Modifier.align(Alignment.TopEnd).padding(top = 196.dp, end = 72.dp)) {
             Btn("앱 정보", primary = false, height = 80, size = 28, pad = 32, icon = PhosphorIcons.Regular.Info) { Stage.openAbout() }
         }
         Row(
-            Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 176.dp).fillMaxWidth().height(646.dp),
-            horizontalArrangement = Arrangement.spacedBy(20.dp),
+            Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 176.dp).fillMaxWidth().height(700.dp),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            Column(Modifier.width(330.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                val mod = Modifier.weight(1f).fillMaxWidth()
+            SetList("켜고 끄기", Modifier.weight(1f).fillMaxHeight()) {
                 // 운전 도움(옛 초보 운전, 11/02 사용자: 이름만 바꾸고 본인이 켜고 익숙해지면 본인이 끈다)
-                ToggleTile(
-                    PhosphorIcons.Fill.SteeringWheel, "운전 도움", C.Mint, mod,
-                    now = if (ui.novice) "켜 뒀어요" else "꺼 뒀어요", line = "주차·회전교차로에서\n한마디씩 도와요",
-                    check = "켜 두기", on = ui.novice,
-                ) { Stage.novice(!ui.novice) }
-                KidsCard(ui, mod)
+                SetRow("운전 도움", "주차·회전교차로에서 한마디씩 도와요", ui.novice) { Stage.novice(!ui.novice) }
+                // 가족 정보: 체크해 두면 사고 때 뒷좌석에 아이가 있는지 살피라고 알린다(사용자 결정 11/01, ride/Baby)
+                val kids = ui.kids == true
+                SetRow("아이가 있어요", "사고 때 뒷좌석을 살피라고 알려요", kids) { Stage.kids(!kids) }
+                // 내 보험사: 미리 골라 두면 사고 안내의 보험사 걸음에 그 접수 번호가 바로 뜬다(외부 검토 11/10, 별첨 C 9)
+                SetLink("내 보험사", "사고 때 접수 번호를 바로 띄워요", ui.insurer ?: "고르지 않음") { Stage.openInsurer() }
+                // 셋은 쓰는 모습으로 저절로 켜지기도 한다(ride/SlowTalk·Dusk). 켜진 까닭은 켤 때 안내로 말하고, 여기 줄은 하는 일만(까닭만 적으면 무엇을 하는 줄인지 몰랐다)
+                SetRow("천천히 말하기", "모든 말을 조금 천천히 해요", ui.slowTalk) { Stage.slow(!ui.slowTalk) }
+                SetRow("대답 넉넉히 기다리기", "${Stage.ANSWER_MS / 1000}초 대신 ${SlowTalk.LONG_WAIT_MS / 1000}초까지 기다려요", ui.longWait) { Stage.longWait(!ui.longWait) }
+                SetRow("해 지기 전에 알려 주기", "도착이 해 진 뒤면 출발 전에 알려요", ui.dusk) { Stage.dusk(!ui.dusk) }
+                SetRow("대화 중엔 소리 낮추기", "말소리가 들리는지만 재고 남기지 않아요", ui.talkOn) { Stage.talk(!ui.talkOn) }
+                SetRow("위치 보내기", "병원·화장실·날씨를 찾을 때만 보내요", ui.geoSend, last = true) { Stage.geo(!ui.geoSend) }
             }
-            ListenTile(ui, Modifier.width(460.dp).fillMaxHeight())
-            Column(Modifier.width(340.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-                val mod = Modifier.weight(1f).fillMaxWidth()
-                QuietTile(ui, mod)
-                CareTile(ui.care, mod)
+            Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(24.dp)) {
+                QuietRow(ui)
+                // 곁들임 물음(사용자 결정 11/06: 새로 깐 앱은 모두 꺼짐). "괜찮아요" 두 번으로 묻지 않게 된 물음은 꺼진 것으로 보이고, 켜면 처음처럼 묻는다.
+                // 대화 중엔 소리 낮추기가 이미 켜져 있으면 물을 일이 없어 그 줄은 뺀다(켜고 끄기는 왼쪽 목록)
+                SetList("먼저 물어볼 것", Modifier.weight(1f).fillMaxWidth()) {
+                    val keys = Stage.ASK_LINES.keys.filter { !(it == "TALK" && ui.talkOn) }
+                    keys.forEachIndexed { i, key ->
+                        val on = asking(ui, key)
+                        SetRow(Stage.ASK_LINES.getValue(key).first, null, on, last = i == keys.lastIndex) { Stage.asks(key, !on) }
+                    }
+                }
             }
-            MoreTile(ui, Modifier.weight(1f).fillMaxHeight())
         }
         ForgetRow(ui)
     }
 }
 
-/** 켜고 끄는 큰 칸(운전 도움·가족 정보·조용히 가기): 머리, 지금 한 줄, 하는 일 두 줄까지, 체크 버튼 하나 */
+/** 설정의 목록 판 하나: 옅은 머리 한 줄과, 판 높이를 똑같이 나눠 가진 줄들 */
 @Composable
-private fun ToggleTile(icon: ImageVector, label: String, color: Color, modifier: Modifier, now: String, line: String, check: String, on: Boolean, onClick: () -> Unit) {
-    Column(modifier.frosted(sq(44)).padding(horizontal = 28.dp, vertical = 26.dp), verticalArrangement = Arrangement.SpaceBetween) {
-        Column {
-            WidgetHead(icon, label, color)
-            Text(now, style = t(36, W700, tracking = -.03), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp))
-            Text(line, style = t(24, color = C.L2), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-        }
-        Btn(check, primary = on, height = 76, size = 24, pad = 22, icon = if (on) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square, onClick = onClick)
+private fun SetList(title: String, modifier: Modifier, rows: @Composable ColumnScope.() -> Unit) {
+    Column(modifier.frosted(sq(48)).padding(start = 36.dp, end = 28.dp, top = 24.dp, bottom = 10.dp)) {
+        Text(title, style = t(24, W600, C.L2b))
+        Column(Modifier.padding(top = 6.dp).weight(1f), content = rows)
     }
 }
 
-/**
- * 듣고 보기(검토-방향노인초보 3-9): 천천히 말하기·넉넉히 기다리기·해 지기 전에 알려 주기를 한 판에서 켜고 끈다.
- * 셋 다 쓰는 모습으로 저절로 켜지기도 해서(ride/SlowTalk·Dusk) 켜진 까닭을 한 줄 옅게 붙인다. 나이는 말하지 않는다
- */
+/** 설정의 한 줄: 줄 전체가 누름 칸. 이름, 하는 일 한 줄(있으면), 오른쪽 스위치. 줄 사이에 옅은 선 */
 @Composable
-private fun ListenTile(ui: StageUi, modifier: Modifier) {
-    Column(modifier.frosted(sq(44)).padding(horizontal = 28.dp, vertical = 26.dp)) {
-        WidgetHead(PhosphorIcons.Fill.Ear, "듣고 보기", C.Sky)
-        Column(Modifier.padding(top = 16.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            val mod = Modifier.weight(1f).fillMaxWidth()
-            CheckRow("천천히 말하기", "모든 말을 조금 천천히 해요", ui.slowWhy, ui.slowTalk, mod) { Stage.slow(!ui.slowTalk) }
-            CheckRow("넉넉히 기다리기", "대답을 ${Stage.ANSWER_MS / 1000}초 대신 ${SlowTalk.LONG_WAIT_MS / 1000}초까지 기다려요", ui.waitWhy, ui.longWait, mod) { Stage.longWait(!ui.longWait) }
-            CheckRow("해 지기 전에 알려 주기", "도착이 해 진 뒤면 출발 전에 알려요", ui.duskWhy, ui.dusk, mod) { Stage.dusk(!ui.dusk) }
-        }
-    }
-}
-
-/** 듣고 보기의 한 줄: 줄 전체가 누름 칸. 체크, 이름, 하는 일, 켜진 까닭(있으면) */
-@Composable
-private fun CheckRow(label: String, line: String, why: String?, on: Boolean, modifier: Modifier, onClick: () -> Unit) {
-    val shape = sq(32)
+private fun ColumnScope.SetRow(name: String, line: String?, on: Boolean, last: Boolean = false, onClick: () -> Unit) {
     Row(
-        modifier.press(shape, onClick = onClick).clip(shape).background(if (on) Color.White.copy(alpha = .07f) else Color.Transparent)
-            .border(1.dp, Color.White.copy(alpha = if (on) .16f else .08f), shape).padding(horizontal = 22.dp),
-        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp),
+        Modifier.weight(1f).fillMaxWidth().underline(last).press(sq(20), onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp),
     ) {
-        Icon(if (on) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square, null, tint = if (on) C.Sky else C.L2, modifier = Modifier.size(40.dp))
         Column(Modifier.weight(1f)) {
-            Text(label, style = t(28, W700, tracking = -.02), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text(line, style = t(24, color = C.L2), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
-            why?.let { Text(it, style = t(24, color = C.L2b), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp)) }
+            Text(name, style = t(30, W600), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            line?.let { Text(it, style = t(22, color = C.L2b), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp)) }
         }
+        Toggle(on)
     }
+}
+
+/** 설정의 한 줄 중 다른 화면을 여는 것: 이름, 하는 일 한 줄, 오른쪽에 지금 값과 꺾쇠 */
+@Composable
+private fun ColumnScope.SetLink(name: String, line: String?, value: String, last: Boolean = false, onClick: () -> Unit) {
+    Row(
+        Modifier.weight(1f).fillMaxWidth().underline(last).press(sq(20), onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(name, style = t(30, W600), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            line?.let { Text(it, style = t(22, color = C.L2b), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp)) }
+        }
+        Text(value, style = t(26, W600, C.L2), maxLines = 1)
+        Icon(PhosphorIcons.Regular.CaretRight, null, tint = C.L2b, modifier = Modifier.size(30.dp))
+    }
+}
+
+/** 켜짐·꺼짐 스위치(흰 바탕이면 켜짐). 누름은 줄이 받는다 */
+@Composable
+private fun Toggle(on: Boolean) {
+    val x by animateDpAsState(if (on) 34.dp else 0.dp, tween(180), label = "toggle")
+    Box(Modifier.size(width = 84.dp, height = 50.dp).clip(Pill).background(if (on) C.L1 else C.Fill).padding(5.dp)) {
+        Box(Modifier.offset(x = x).size(40.dp).clip(CircleShape).background(if (on) C.Ink else C.L1))
+    }
+}
+
+/** 줄 아래 옅은 선(목록의 마지막 줄은 없이) */
+private fun Modifier.underline(last: Boolean): Modifier = if (last) this else drawBehind {
+    drawLine(Color.White.copy(alpha = .08f), Offset(0f, size.height), Offset(size.width, size.height), 1.dp.toPx())
 }
 
 /**
- * 조용히 가기(이번 운행만, 새 운행이면 꺼진다): 먼저 건네는 물음은 카드로만, 쉼터·혹시 사고·급할 때만 목소리(ride/Care).
- * 같은 때에 두 번 부른 조용히 가기는 다음엔 먼저 조용히 둔다(그 때와 [처음대로]는 '그 밖에' 화면)
+ * 급한 말만 하기(옛 조용히 가기. 이번 운행만, 새 운행이면 꺼진다): 먼저 건네는 물음은 카드로만, 쉼터·혹시 사고·급할 때만 목소리(ride/Care).
+ * 늘(사용자 결정 11/04): [이번 운행]은 이 운행만, [늘]은 운행마다. 같은 때에 두 번 부른 것은 다음엔 먼저 켠다(그 때와 [처음대로]는 '배운 것')
  */
 @Composable
-private fun QuietTile(ui: StageUi, modifier: Modifier) {
+private fun QuietRow(ui: StageUi) {
     val learned = ui.habits.quietLearned
-    // 늘 조용히(사용자 결정 11/04): [이번 운행]은 이 운행만, [늘]은 운행마다. 늘이 켜져 있어도 [이번 운행]을 끄면 이 운행만 평소대로
-    Column(modifier.frosted(sq(44)).padding(horizontal = 28.dp, vertical = 26.dp), verticalArrangement = Arrangement.SpaceBetween) {
-        Column {
-            WidgetHead(PhosphorIcons.Fill.SpeakerSimpleSlash, "조용히 가기", C.Lilac)
-            Text(when { ui.alwaysQuiet && ui.quietRide -> "늘 조용히"; ui.quietRide -> "이번 운행 조용히"; else -> "꺼짐" },
-                style = t(36, W700, tracking = -.03), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp))
-            Text(when {
-                ui.alwaysQuiet -> "운행마다 쉼터와\n급한 일만 말해요"
-                ui.quietRide -> "이번 운행은 쉼터와\n급한 일만 말해요"
-                learned.isNotEmpty() -> "${learned.first()}엔 먼저 조용히 가요"
-                else -> "켜면 쉼터와\n급한 일만 말해요"
-            }, style = t(24, color = C.L2), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Btn("이번 운행", primary = ui.quietRide, height = 76, size = 22, pad = 18,
-                icon = if (ui.quietRide) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square) { Stage.quietRide(!ui.quietRide) }
-            Btn("늘", primary = ui.alwaysQuiet, height = 76, size = 22, pad = 18,
-                icon = if (ui.alwaysQuiet) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square) { Stage.alwaysQuiet(!ui.alwaysQuiet) }
-        }
-    }
-}
-
-/** 차 돌봄 칸: 칸 전체가 차 돌봄을 연다. 갈 때가 된 항목 수와 이름(없으면 곧 될 것 하나). 줄은 세울 때·새 운행에 다시 센다(ride/CarCare) */
-@Composable
-private fun CareTile(c: CareUi, modifier: Modifier) {
-    val due = c.rows.filter { it.due }
-    val soon = c.rows.firstOrNull { it.soon }
-    Column(
-        modifier.press(sq(44)) { Stage.openCare() }.frosted(sq(44)).padding(horizontal = 28.dp, vertical = 26.dp),
-        verticalArrangement = Arrangement.SpaceBetween,
+    Row(
+        Modifier.fillMaxWidth().height(150.dp).frosted(sq(48)).padding(start = 36.dp, end = 24.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Column {
-            WidgetHead(PhosphorIcons.Fill.Wrench, "차 돌봄", C.Amber)
-            Text(
-                when { c.rows.isEmpty() -> "정비 때 보기"; due.isEmpty() -> "때가 된 것 없어요"; else -> "때가 된 것 ${due.size}개" },
-                style = t(36, W700, tracking = -.03), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.dp),
-            )
+        Column(Modifier.weight(1f)) {
+            Text("급한 말만 하기", style = t(30, W600), maxLines = 1)
             Text(
                 when {
-                    due.isNotEmpty() -> due.joinToString(" · ") { it.label }
-                    soon != null -> "곧 ${soon.label} · ${soon.state}"
-                    else -> "때가 되면 세웠을 때 알려요"
+                    ui.alwaysQuiet -> "운행마다 쉼터와 급한 일만 말해요"
+                    ui.quietRide -> "이번 운행은 쉼터와 급한 일만 말해요"
+                    learned.isNotEmpty() -> "${learned.first()}엔 먼저 이렇게 해요"
+                    else -> "켜면 쉼터와 급한 일만 말해요"
                 },
-                style = t(24, color = if (due.isNotEmpty()) C.Amber else C.L2), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp),
+                style = t(22, color = C.L2b), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp),
             )
         }
-        Btn("자세히", primary = false, height = 76, size = 24, pad = 26, icon = PhosphorIcons.Regular.CaretRight, iconAfter = true) { Stage.openCare() }
+        Btn("이번 운행", primary = ui.quietRide, height = 72, size = 24, pad = 22,
+            icon = if (ui.quietRide) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square) { Stage.quietRide(!ui.quietRide) }
+        Btn("늘", primary = ui.alwaysQuiet, height = 72, size = 24, pad = 22,
+            icon = if (ui.alwaysQuiet) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square) { Stage.alwaysQuiet(!ui.alwaysQuiet) }
     }
 }
 
-/** 곁들임 물음이 지금 묻는 중인가: 먼저 묻기에서 켜 두었고, "괜찮아요" 두 번으로 묻지 않게 되지 않았다(ride/Memory) */
+/** 곁들임 물음이 지금 묻는 중인가: 먼저 물어볼 것에서 켜 두었고, "괜찮아요" 두 번으로 묻지 않게 되지 않았다(ride/Memory) */
 private fun asking(ui: StageUi, key: String): Boolean = key in ui.asks && when (key) {
     "HOUR" -> !ui.habits.hour.quiet
     "DAERI" -> !ui.habits.daeri.quiet
@@ -1325,42 +1240,9 @@ private fun asking(ui: StageUi, key: String): Boolean = key in ui.asks && when (
 }
 
 /**
- * 먼저 묻기(사용자 결정 11/06): 곁들임 물음 다섯(한 시간·대리 운행·이야기에 비켜 서기·오래 막힐 때·같이 고르기)을 한 줄씩 켜고 끈다.
- * 새로 깐 앱은 모두 꺼져 있다. 줄 전체가 누름 칸이다. "괜찮아요" 두 번으로 묻지 않게 된 물음은 꺼진 것으로 보이고, 켜면 처음처럼 묻는다.
- * 주차 자리·쪽잠·배운 버릇과 [처음대로]는 아래 [그 밖에]가 여는 화면에(전에는 이 칸이 일곱 줄 요약이었다).
- * 이야기에 비켜 서기가 이미 켜져 있으면 물을 일이 없어 그 줄은 체크 대신 '켜 둠'을 보이고, 누르면 끄는 단추가 있는 [그 밖에]를 연다
- * (검토 11/06: 기능이 켜져 있는데 빈 체크로 보였고, 눌러도 물음만 바뀌어 마이크 재기를 끄는 줄로 잘못 읽혔다)
- */
-@Composable
-private fun MoreTile(ui: StageUi, modifier: Modifier) {
-    Column(modifier.frosted(sq(44)).padding(horizontal = 28.dp, vertical = 26.dp)) {
-        WidgetHead(PhosphorIcons.Fill.ChatCircleDots, "먼저 묻기", C.Mint)
-        Text("켜 둔 것만 먼저 여쭤요", style = t(22, color = C.L2b), maxLines = 1, modifier = Modifier.padding(top = 4.dp))
-        Column(Modifier.padding(top = 12.dp, bottom = 12.dp).weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Stage.ASK_LINES.forEach { (key, line) ->
-                val featureOn = key == "TALK" && ui.talkOn
-                val on = featureOn || asking(ui, key)
-                val shape = sq(28)
-                Row(
-                    Modifier.weight(1f).fillMaxWidth().press(shape) { if (featureOn) Stage.openMemoMore() else Stage.asks(key, !on) }.clip(shape)
-                        .background(if (on) Color.White.copy(alpha = .07f) else Color.Transparent)
-                        .border(1.dp, Color.White.copy(alpha = if (on) .16f else .08f), shape).padding(horizontal = 18.dp),
-                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
-                ) {
-                    Icon(if (featureOn) PhosphorIcons.Regular.Microphone else if (on) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square, null, tint = if (on) C.Mint else C.L2, modifier = Modifier.size(34.dp))
-                    Text(line.first, style = t(24, W600, if (on) C.L1 else C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                    if (featureOn) Text("켜 둠", style = t(22, W600, C.Mint), maxLines = 1)
-                }
-            }
-        }
-        Btn("그 밖에", primary = false, height = 76, size = 24, pad = 26, icon = PhosphorIcons.Regular.CaretRight, iconAfter = true) { Stage.openMemoMore() }
-    }
-}
-
-/**
- * 기억 화면 맨 아래: 남기는 것과 보내는 것, [위치 보내기](사용자 결정 11/06, ride/GeoShare), [모두 잊기].
+ * 설정 맨 아래: 남기는 것과 보내는 것 한 줄, [배운 것], [모두 잊기].
  * 모두 잊기는 그 자리에서 한 번 더 누르게 한다(묻는 카드는 첫 화면에만 뜬다), 8초 안에 누르지 않으면 되돌린다.
- * 켜고 끄는 설정(운전 도움·먼저 묻기·위치 보내기·이야기에 비켜 서기)과 사고 메모는 잊지 않는다(ride/Care·RideService의 onForget)
+ * 켜고 끄는 설정(운전 도움·먼저 물어볼 것·위치 보내기·대화 중엔 소리 낮추기)과 사고 메모는 잊지 않는다(ride/Care·RideService의 onForget)
  */
 @Composable
 private fun BoxScope.ForgetRow(ui: StageUi) {
@@ -1373,7 +1255,7 @@ private fun BoxScope.ForgetRow(ui: StageUi) {
         if (sure) {
             Column(Modifier.weight(1f)) {
                 Text("한 번 더 누르면 모두 잊고 처음처럼 물어요", style = t(28, W700), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("켜고 끈 설정(운전 도움·먼저 묻기·위치 보내기 등)과 사고 메모는 그대로 둬요", style = t(24, color = C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                Text("켜고 끈 설정과 사고 메모는 그대로 둬요", style = t(24, color = C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
             }
             Btn("그만두기", primary = false, height = 96, size = 30, pad = 36) { sure = false }
             Btn("모두 잊기", primary = true, height = 96, size = 30, pad = 36) { sure = false; Stage.forget(null) }
@@ -1381,80 +1263,138 @@ private fun BoxScope.ForgetRow(ui: StageUi) {
             // 실제로 적는 것(ride/Memory·Baby·RideKeep·RideClock·AfterCrash·CarCare·AlleyDest·SlowTalk·Dusk·GeoShare, 설정): 대답과 그 시각, 설정, 운전 시간, 사고 메모(시각·장소·날씨), 정비한 때(거리·날짜), 골목 목적지 ‘그대로’ 횟수, 고속도로 정차 카드에 [괜찮아요]를 받은 자리(노선·이정 km, ride/HighwayStop).
             // 보내는 것(ride/Road·Crash·Dusk·Together·CarCare·AlleyDest): 위치는 골목·큰길 가리기와 병원·화장실·날씨·가게 찾기에만, 위치 보내기를 끄면 보내지 않는다
             Text(
-                "대답과 그 시각, 설정, 운전 시간, 사고 메모, 정비한 때, 고속도로에서 [괜찮아요]를 누른 자리만 이 차에 남기고 들은 말은 남기지 않아요. 못 알아들은 말은 AI 서버로 보내요. " +
-                    if (ui.geoSend) "위치는 골목·큰길을 가리고 병원·화장실·날씨·가게를 찾을 때만 보내고 저장하지 않아요"
-                    else "위치는 보내지 않아요 · 병원은 앱 안 목록으로, 골목은 차 신호로 가려요",
-                style = t(24, color = C.L2b), maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
+                "대답과 설정, 운전 시간, 사고 메모만 이 차에 남기고 들은 말은 남기지 않아요. 못 알아들은 말만 AI 서버로 보내요. " +
+                    if (ui.geoSend) "위치는 찾을 때만 보내고 저장하지 않아요" else "위치는 보내지 않아요",
+                style = t(24, color = C.L2b), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f),
             )
-            Btn("위치 보내기", primary = ui.geoSend, height = 96, size = 28, pad = 30,
-                icon = if (ui.geoSend) PhosphorIcons.Fill.CheckSquare else PhosphorIcons.Regular.Square) { Stage.geo(!ui.geoSend) }
+            Btn("배운 것", primary = false, height = 96, size = 30, pad = 36, icon = PhosphorIcons.Regular.CaretRight, iconAfter = true) { Stage.openMemoMore() }
             Btn("모두 잊기", primary = false, height = 96, size = 30, pad = 36) { sure = true }
         }
     }
 }
 
+/** 먼저 물어볼 것에서 꺼 둔 물음의 지금 한 줄 */
+private const val OFF_NOW = "꺼 둠 · 설정에서 켜요"
+
+/** 한 시간 물음에서 지난번 고른 것(Memory.hourPicked의 이름)을 사람 말로(조사까지) */
+private val HOUR_PICKS = mapOf("AIR" to "바깥 공기를", "HEAT" to "열선을", "VENT" to "통풍을", "MUSIC" to "잔잔한 곡을")
+
 /**
- * 기억 화면 안의 '그 밖에'(검토-방향노인초보 2-2): 버릇 2×2(한 시간·조용히 가기·주차 자리·대리 운행)와 큰 카드 셋(쪽잠·오래 막힐 때·같이 고르기),
- * 이야기에 비켜 서기, [기억으로]. 카드 높이는 내용에 맞추되 셋을 같은 높이로 두고 330 아래로는 줄이지 않는다(판이 두 줄이 되어 제목 아래 한 줄을 가리지 않게, 11/01)
+ * 설정 안의 '배운 것'(옛 그 밖에, 11/09 담백하게): 쓰면서 맞춘 버릇 일곱을 한 목록에. 줄마다 이름, 지금 하는 것, 바뀌었으면 '바뀜'과 까닭, [처음대로].
+ * 꺼 둔 물음은 '꺼 둠'만(켜는 곳은 설정). 세는 중인 대답의 점과 졸음쉼터 한 줄은 뺐다. 한 시간 물음은 지난번 고른 것을 먼저 내미는 것도 배운 것으로 본다
  */
 @Composable
 private fun MemoMorePage(ui: StageUi) {
     val h = ui.habits
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 196.dp).fillMaxWidth()) {
-            MemoMore(ui)
-            Row(
-                Modifier.padding(top = 16.dp).fillMaxWidth().height(IntrinsicSize.Max).heightIn(min = 330.dp),
-                horizontalArrangement = Arrangement.spacedBy(24.dp),
-            ) {
-                val mod = Modifier.weight(1f).fillMaxHeight()
-                MemoCard(
-                    PhosphorIcons.Fill.MoonStars, "쪽잠", C.Lilac, mod,
-                    now = "${h.napMin ?: 15}분 쉬고\n${h.napLead / 60}분 앞서 깨워요",
-                    why = when {
-                        h.napLead > 120 -> "어렵게 깨신 날이 이어져서"
-                        h.napMin != null -> "지난번에 고르신 길이"
-                        else -> "처음 그대로"
-                    },
-                    progress = if (h.napLead >= 240) null else Progress(h.napHard, 2, if (h.napHard > 0) "한 번 더 어렵게 깨면 1분 일찍" else "두 번 어렵게 깨면 1분 일찍"),
-                    changed = h.napChanged, kind = "NAP",
-                )
-                val jam = h.jam
-                MemoCard(
-                    PhosphorIcons.Fill.Lamp, "오래 막힐 때", C.Amber, mod,
-                    now = when { "JAM" !in ui.asks -> OFF_NOW; jam.quiet -> "막혀도\n묻지 않아요"; jam.auto -> "10분 넘게 막히면\n알아서 바꿔요"; else -> "10분 넘게 막히면\n물어요" },
-                    why = jam.why ?: "처음 그대로",
-                    progress = if ("JAM" in ui.asks) progress(jam, "알아서 바꿔요", "묻지 않아요") else null,
-                    changed = jam.changed, kind = "JAM",
-                )
-                val pick = h.pick
-                MemoCard(
-                    PhosphorIcons.Fill.ForkKnife, "같이 고르기", C.Sky, mod,
-                    now = when { "PICK" !in ui.asks -> OFF_NOW; pick.quiet -> "밥때에도\n먼저 묻지 않아요"; else -> "밥때 같이 세우면\n물어요" },
-                    why = pick.why ?: "처음 그대로",
-                    progress = if ("PICK" in ui.asks) progress(pick, null, "먼저 묻지 않아요") else null,
-                    changed = pick.changed, kind = "PICK",
-                )
-            }
+        Column(
+            Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 176.dp).fillMaxWidth().height(700.dp)
+                .frosted(sq(48)).padding(start = 36.dp, end = 28.dp, top = 10.dp, bottom = 10.dp),
+        ) {
+            LearnRow(
+                "쪽잠", "${h.napMin ?: 15}분 쉬고 ${h.napLead / 60}분 앞서 깨워요",
+                why = when { h.napLead > 120 -> "어렵게 깨신 날이 이어져서"; h.napMin != null -> "지난번에 고르신 길이"; else -> null },
+                changed = h.napChanged, kind = "NAP",
+            )
+            val pick = h.hourPick?.let { HOUR_PICKS[it] }
+            LearnRow(
+                "한 시간 운전", when { "HOUR" !in ui.asks -> OFF_NOW; h.hour.quiet -> "묻지 않아요"; h.hour.auto -> "바깥 공기를 넣어 둬요"; else -> "한 시간 달리면 필요한 것을 물어요" },
+                why = if (h.hour.quiet || h.hour.auto) h.hour.why else pick?.let { "$it 먼저 권해요" },
+                changed = h.hour.quiet || h.hour.auto || pick != null, kind = "HOUR",
+            )
+            // 부른 것은 다음엔 부르기 전에: 같은 때에 두 번 부른 급한 말만 하기(11/01 추천 2)
+            val quiet = h.quietLearned
+            LearnRow(
+                "급한 말만 하기", if (quiet.isEmpty()) "부르면 그 운행만" else "${quiet.first()}엔 먼저 켜요${if (quiet.size > 1) " 외 ${quiet.size - 1}" else ""}",
+                why = if (quiet.isEmpty()) null else "그 시간에 두 번 조용히 가자고 하셔서", changed = quiet.isNotEmpty(), kind = "QUIET",
+            )
+            LearnRow("주차 자리", if (h.spot.quiet) "알리지 않아요" else "어두운 곳에 세우면 알려요", why = h.spot.why, changed = h.spot.quiet, kind = "SPOT")
+            // 대리 운행은 P에서 버튼으로도 켠다(별첨 2 §5-9 'PREND 화면의 메뉴'). 켜면 설정은 가려지고 첫 화면에 [대리 끝]이 생긴다
+            LearnRow(
+                "대리 운행", when { "DAERI" !in ui.asks -> OFF_NOW; h.daeri.quiet -> "묻지 않아요"; else -> "밤에 동승자가 타면 물어요" },
+                why = h.daeri.why, changed = h.daeri.quiet, kind = "DAERI", action = "지금 켜기" to { Stage.daeri(true) },
+            )
+            val jam = h.jam
+            LearnRow(
+                "오래 막힐 때", when { "JAM" !in ui.asks -> OFF_NOW; jam.quiet -> "막혀도 묻지 않아요"; jam.auto -> "10분 넘게 막히면 알아서 바꿔요"; else -> "10분 넘게 막히면 물어요" },
+                why = jam.why, changed = jam.changed, kind = "JAM",
+            )
+            val pk = h.pick
+            LearnRow(
+                "밥집·카페", when { "PICK" !in ui.asks -> OFF_NOW; pk.quiet -> "밥때에도 먼저 묻지 않아요"; else -> "밥때 같이 세우면 물어요" },
+                why = pk.why, changed = pk.changed, kind = "PICK", last = true,
+            )
         }
         Row(
             Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 56.dp).fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End,
         ) {
-            Text("졸음쉼터는 졸음과 이어져 있어 기억과 상관없이 두 시간마다 물어요", style = t(24, color = C.L2b), modifier = Modifier.weight(1f))
-            Btn(if (ui.talkOn) "이야기에 비켜 서기 · 켬" else "이야기에 비켜 서기 · 끔", primary = ui.talkOn, height = 96, size = 30, pad = 36) { Stage.talk(!ui.talkOn) }
-            Btn("기억으로", primary = false, height = 96, size = 30, pad = 36, icon = PhosphorIcons.Regular.CaretLeft) { Stage.openMemoMore(false) }
+            Btn("설정으로", primary = false, height = 96, size = 30, pad = 36, icon = PhosphorIcons.Regular.CaretLeft) { Stage.openMemoMore(false) }
         }
     }
 }
 
-/** 대리 운행 중의 기억 화면: 가려 둔다는 한 줄과 [대리 운행 끄기] */
+/** 배운 것의 한 줄: 이름, 지금 하는 것('바뀜' 꼬리표), 바뀌었으면 까닭, 버튼(있으면)과 [처음대로] */
+@Composable
+private fun ColumnScope.LearnRow(name: String, now: String, why: String?, changed: Boolean, kind: String, action: Pair<String, () -> Unit>? = null, last: Boolean = false) {
+    Row(
+        Modifier.weight(1f).fillMaxWidth().underline(last),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        Text(name, style = t(30, W600), maxLines = 1, modifier = Modifier.width(290.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(now, style = t(28, color = if (now == OFF_NOW) C.L2b else C.L1), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                if (changed) ChangedTag()
+            }
+            if (changed && why != null) Text(why, style = t(22, color = C.L2b), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
+        }
+        action?.let { (label, go) -> Btn(label, primary = false, height = 68, size = 24, pad = 24, onClick = go) }
+        if (changed) Btn("처음대로", primary = false, height = 68, size = 24, pad = 24) { Stage.forget(kind) }
+    }
+}
+
+/** 설정 안의 '내 보험사' 제목 */
+@Composable
+private fun InsurerHead() {
+    Column(Modifier.padding(start = 72.dp, end = 72.dp, top = 196.dp)) {
+        Text("내 보험사", style = t(84, W700, tracking = -.035))
+        Text("사고가 나면 이 보험사의 접수 번호를 바로 띄워요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
+    }
+}
+
+/** 내 보험사 고르기: 열한 곳(Guide.INSURERS)을 큰 칸으로. 고르면 설정으로 돌아간다. 고른 것을 다시 누르면 지운다 */
+@Composable
+private fun InsurerPage(ui: StageUi) {
+    Box(Modifier.fillMaxSize()) {
+        FlowRow(
+            Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 196.dp).fillMaxWidth()
+                .frosted(sq(48)).padding(horizontal = 40.dp, vertical = 40.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Guide.INSURERS.forEach { i ->
+                val mine = ui.insurer == i.name
+                Btn(i.name, primary = mine, height = 100, size = 32, pad = 40) {
+                    Stage.insurer(if (mine) null else i.name)
+                    Stage.openInsurer(false)
+                }
+            }
+        }
+        Row(
+            Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 56.dp).fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.End,
+        ) {
+            Btn("설정으로", primary = false, height = 96, size = 30, pad = 36, icon = PhosphorIcons.Regular.CaretLeft) { Stage.openInsurer(false) }
+        }
+    }
+}
+
+/** 대리 운행 중의 설정: 가려 둔다는 한 줄과 [대리 운행 끄기] */
 @Composable
 private fun MemoHidden() {
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 196.dp).fillMaxWidth().frosted(sq(48)).padding(horizontal = 56.dp, vertical = 48.dp)) {
-            WidgetHead(PhosphorIcons.Fill.SteeringWheel, "대리 운행", C.Lilac)
-            Text("대리 운행 중엔 기억을 가려 둬요", style = t(48, W700, tracking = -.03, line = 1.2), modifier = Modifier.padding(top = 22.dp))
+            Text("대리 운행 중엔 설정을 가려 둬요", style = t(48, W700, tracking = -.03, line = 1.2))
             Text("대리 운행을 끄면 다시 보여요", style = t(26, color = C.L2), modifier = Modifier.padding(top = 12.dp))
             Box(Modifier.padding(top = 30.dp)) { Btn("대리 운행 끄기", primary = true, height = 100, size = 33) { Stage.daeri(false) } }
         }
@@ -1467,7 +1407,6 @@ private fun MemoHidden() {
 private fun AboutHead() {
     Column(Modifier.padding(start = 72.dp, end = 72.dp, top = 196.dp)) {
         Text("앱 정보", style = t(84, W700, tracking = -.035))
-        Text("시연에서 대신한 것과 화면에 쓴 자료, 함께 쓴 오픈소스예요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
     }
 }
 
@@ -1515,7 +1454,7 @@ private fun AboutFront() {
                     "Silero VAD · MIT",
                     "Phosphor 아이콘 · MIT",
                     "Jetpack Compose · Media3 · AndroidX · Apache 2.0",
-                    "Haze · Backdrop · Capsule · Apache 2.0",
+                    "Haze · Capsule · Apache 2.0",
                     "Kotlin · kotlinx.coroutines · Apache 2.0",
                 ),
                 foot = "라이선스 전문은 앱 안 licenses 폴더에 함께 넣어 두었어요",
@@ -1525,8 +1464,8 @@ private fun AboutFront() {
             Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 56.dp).fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text("세워 둔 동안만 열려요", style = t(24, color = C.L2b), modifier = Modifier.weight(1f))
-            Btn("기억으로", primary = false, height = 96, size = 30, pad = 36, icon = PhosphorIcons.Regular.CaretLeft) { Stage.openAbout(false) }
+            Spacer(Modifier.weight(1f))
+            Btn("설정으로", primary = false, height = 96, size = 30, pad = 36, icon = PhosphorIcons.Regular.CaretLeft) { Stage.openAbout(false) }
         }
     }
 }
@@ -1548,129 +1487,11 @@ private fun AboutCard(icon: ImageVector, label: String, color: Color, modifier: 
     }
 }
 
-/** 세는 중인 대답: 점(채운 수/모을 수)과 한 줄. 이미 알아서 하거나 묻지 않으면 null */
-private data class Progress(val filled: Int, val of: Int, val text: String)
-
-private fun progress(h: Habit, auto: String?, less: String): Progress? = when {
-    h.quiet || h.auto -> null
-    h.no > 0 -> Progress(h.no, 2, "“괜찮아요” ${h.no}번 · 한 번 더면 $less")
-    auto != null && h.yes > 0 -> Progress(h.yes, 3, "“응” ${h.yes}번 · ${if (h.yes >= 2) "한 번 더면" else "세 번이면"} $auto")
-    auto != null -> Progress(0, 3, "“응” 세 번이면 $auto")
-    else -> Progress(0, 2, "“괜찮아요” 두 번이면 $less")
-}
-
-/**
- * 기억 카드 하나: 지금 하는 것, 바뀌었으면 '바뀜'과 그 까닭, 세는 중인 대답(점과 한 줄), 바뀌었으면 [처음대로].
- * 안 바뀐 카드는 '처음 그대로'를 적지 않는다(바뀐 카드만 눈에 띄게). 점과 한 줄은 지금 하는 것 바로 아래에 둔다
- */
-@Composable
-private fun MemoCard(icon: ImageVector, label: String, color: Color, modifier: Modifier, now: String, why: String, progress: Progress?, extra: String? = null, changed: Boolean, kind: String) {
-    Column(modifier.frosted(sq(48)).padding(horizontal = 38.dp, vertical = 34.dp), verticalArrangement = Arrangement.SpaceBetween) {
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                WidgetHead(icon, label, color)
-                if (changed) ChangedTag()
-            }
-            Text(now, style = t(44, W700, tracking = -.03, line = 1.18), modifier = Modifier.padding(top = 22.dp))
-            if (changed) Text(why, style = t(24, color = C.L2), modifier = Modifier.padding(top = 12.dp))
-            extra?.let { Text(it, style = t(24, color = C.L2), modifier = Modifier.padding(top = 6.dp)) }
-            progress?.let { p ->
-                Row(Modifier.padding(top = 18.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    repeat(p.of) { i -> Box(Modifier.size(18.dp).clip(CircleShape).background(if (i < p.filled) C.Mint else Color.White.copy(alpha = .16f))) }
-                }
-                Text(p.text, style = t(26, color = C.L2), modifier = Modifier.padding(top = 8.dp))
-            }
-        }
-        if (changed) Box(Modifier.padding(top = 18.dp)) { Btn("처음대로", primary = false, height = 80, size = 26, pad = 32) { Stage.forget(kind) } }
-    }
-}
-
-/**
- * 기억 화면의 가족 정보. 쓰면서 배우는 버릇이 아니라 사람이 정해 두는 것이라 '바뀜'·[처음대로] 대신 체크 하나로 바로 고친다.
- * 체크해 두면 사고 때 뒷좌석에 아이가 있는지 살피라고 알린다(사용자 결정 11/01, ride/Baby). 기억 화면의 큰 칸 하나(운전 도움 아래)
- */
-@Composable
-private fun KidsCard(ui: StageUi, modifier: Modifier) {
-    val kids = ui.kids == true
-    ToggleTile(
-        PhosphorIcons.Fill.Baby, "가족 정보", C.Lilac, modifier,
-        now = when (ui.kids) { true -> "아이가 있어요"; false -> "아이는 없어요"; null -> "아직 안 정했어요" },
-        line = if (kids) "사고가 나면 뒷좌석을\n살피라고 알려요" else "체크해 두면 사고 때\n뒷좌석을 살피라고 알려요",
-        check = "아이가 있어요", on = kids,
-    ) { Stage.kids(!kids) }
-}
-
-/** 기억이 처음과 달라졌다는 꼬리표(민트: 쓰면서 맞춰진 좋은 변화) */
+/** 버릇이 처음과 달라졌다는 꼬리표(민트: 쓰면서 맞춰진 좋은 변화) */
 @Composable
 private fun ChangedTag() {
     Box(Modifier.clip(Pill).background(C.Mint.copy(alpha = .16f)).border(1.dp, C.Mint.copy(alpha = .3f), Pill).padding(horizontal = 14.dp, vertical = 2.dp)) {
         Text("바뀜", style = t(24, W600, C.Mint))
-    }
-}
-
-/** 먼저 묻기에서 꺼 둔 물음의 지금 한 줄(카드는 두 줄, 칸은 한 줄). 켜는 곳은 기억 화면의 '먼저 묻기' */
-private const val OFF_NOW = "꺼 뒀어요\n먼저 묻기에서 켜요"
-private const val OFF_ONE = "꺼 뒀어요 · 먼저 묻기에서 켜요"
-
-/** 한 시간 물음에서 지난번 고른 것(Memory.hourPicked의 이름)을 사람 말로(조사까지) */
-private val HOUR_PICKS = mapOf("AIR" to "바깥 공기를", "HEAT" to "열선을", "VENT" to "통풍을", "MUSIC" to "잔잔한 곡을")
-
-/**
- * 그 밖의 버릇 한 판(두 줄 2×2): 한 시간 물음·조용히 가기 / 주차 자리·대리 운행. 지금 하는 것 한 줄, 바뀌었으면 '바뀜'과 까닭, [처음대로].
- * 한 시간 물음은 지난번 고른 것을 먼저 내미는 것도 배운 것으로 본다
- */
-@Composable
-private fun MemoMore(ui: StageUi) {
-    val h = ui.habits
-    Column(Modifier.fillMaxWidth().frosted(sq(48)).padding(horizontal = 38.dp, vertical = 18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-        val pick = h.hourPick?.let { HOUR_PICKS[it] }
-        MemoMoreCell(
-            PhosphorIcons.Fill.Coffee, "한 시간", C.Mint,
-            now = when { "HOUR" !in ui.asks -> OFF_ONE; h.hour.quiet -> "묻지 않아요"; h.hour.auto -> "바깥 공기를 넣어 둬요"; else -> "한 시간 달리면 물어요" },
-            why = if (h.hour.quiet || h.hour.auto) h.hour.why else pick?.let { "$it 먼저 권해요" },
-            changed = h.hour.quiet || h.hour.auto || pick != null, kind = "HOUR",
-        )
-        // 부른 것은 다음엔 부르기 전에: 같은 칸에서 두 번 부른 조용히 가기(11/01 추천 2)
-        val quiet = h.quietLearned
-        MemoMoreCell(
-            PhosphorIcons.Fill.SpeakerSimpleSlash, "조용히 가기", C.Lilac,
-            now = if (quiet.isEmpty()) "부르면 그 운행만" else "${quiet.first()}엔 먼저 조용히${if (quiet.size > 1) " 외 ${quiet.size - 1}" else ""}",
-            why = if (quiet.isEmpty()) null else "그 시간에 두 번 조용히 가자고 하셔서",
-            changed = quiet.isNotEmpty(), kind = "QUIET",
-        )
-    }
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(40.dp)) {
-        MemoMoreCell(
-            PhosphorIcons.Fill.MapPin, "주차 자리", C.Sky,
-            now = if (h.spot.quiet) "알리지 않아요" else "어두운 곳에 세우면 알려요",
-            why = h.spot.why, changed = h.spot.quiet, kind = "SPOT",
-        )
-        // 대리 운행은 P에서 버튼으로도 켠다(별첨 2 §5-9 'PREND 화면의 메뉴'). 켜면 기억 화면은 가려지고 첫 화면에 [대리 끝]이 생긴다
-        MemoMoreCell(
-            PhosphorIcons.Fill.SteeringWheel, "대리 운행", C.Lilac,
-            now = when { "DAERI" !in ui.asks -> OFF_ONE; h.daeri.quiet -> "묻지 않아요"; else -> "밤에 동승자가 타면 물어요" },
-            why = h.daeri.why, changed = h.daeri.quiet, kind = "DAERI",
-            action = "지금 켜기" to { Stage.daeri(true) },
-        )
-    }
-    }
-}
-
-/** action은 [처음대로] 앞에 둘 버튼 하나(이름, 누르면 할 일) */
-@Composable
-private fun RowScope.MemoMoreCell(icon: ImageVector, label: String, color: Color, now: String, why: String?, changed: Boolean, kind: String, action: Pair<String, () -> Unit>? = null) {
-    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                WidgetHead(icon, label, color)
-                if (changed) ChangedTag()
-            }
-            Text(now, style = t(30, W700, tracking = -.02), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 8.dp))
-            if (changed && why != null) Text(why, style = t(24, color = C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 2.dp))
-        }
-        action?.let { (name, go) -> Btn(name, primary = false, height = 68, size = 24, pad = 24, onClick = go) }
-        if (changed) Btn("처음대로", primary = false, height = 68, size = 24, pad = 24) { Stage.forget(kind) }
     }
 }
 
@@ -1723,6 +1544,8 @@ private fun EmergencyListen(ui: StageUi, level: () -> Float) {
         Btn("고장 났어요", primary = false, height = 84, size = 30, pad = 36, icon = PhosphorIcons.Fill.Wrench) { Stage.breakdown() }
         Btn("연기가 나요", primary = false, height = 84, size = 30, pad = 36, icon = PhosphorIcons.Fill.Fire) { Stage.fire() }
     }
+    // 119에 말할 위치를 첫 화면에도(외부 검토 11/10: [119 전화]를 바로 누르거나 같이 탄 사람이 휴대폰으로 걸 때 읽을 줄)
+    if (!ui.brief) EmergencyPlace(ui)
     Row(
         Modifier.fillMaxSize().padding(start = 72.dp, end = 72.dp, bottom = 60.dp),
         verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp),
@@ -1730,6 +1553,26 @@ private fun EmergencyListen(ui: StageUi, level: () -> Float) {
         Box(Modifier.weight(1f).height(96.dp), contentAlignment = Alignment.CenterStart) { RedLine("숨이나 의식이 걱정되면 먼저 119") }
         // 달리는 동안은 큰 버튼 둘([사고가 났어요] [갑자기 아파요])까지라 [119 전화]는 세웠을 때만
         if (!ui.brief) Btn("119 전화", primary = true, danger = true, height = 96, size = 34, pad = 44, icon = PhosphorIcons.Fill.Phone) { Stage.dial("119") }
+    }
+}
+
+/** 긴급 첫 화면의 119에 말할 위치(큰 칸 둘과 아래 빨간 줄 사이). 위치가 둘이면(고속도로인지 애매) 둘을 그대로 */
+@Composable
+private fun EmergencyPlace(ui: StageUi) {
+    Box(Modifier.fillMaxSize().padding(start = 72.dp, end = 72.dp, bottom = 180.dp), contentAlignment = Alignment.BottomStart) {
+        Row(
+            Modifier.fillMaxWidth().height(112.dp).frosted(sq(40), Color(0xFF2C2C30), .6f).padding(horizontal = 40.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            IconTile(PhosphorIcons.Fill.MapPin, C.L1, Color.Transparent, 64, 0, 40)
+            Column(Modifier.weight(1f)) {
+                val place = if (ui.demo) "대전 서구 청사로 189 앞" else ui.place
+                val both = Guide.placeBoth(place)
+                Text(if (both) "둘 중 맞는 곳을 말하세요" else "119에 말할 위치", style = t(22, W600, C.L2))
+                Text(place ?: "위치를 찾는 중이에요", style = t(if (both) 24 else 36, W700, tracking = -.02).copy(fontFeatureSettings = tnum),
+                    maxLines = if (both) 2 else 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
     }
 }
 
@@ -1745,17 +1588,16 @@ private fun HeardLine(heard: String) {
 private fun EmergencyCards() {
     Row(Modifier.padding(start = 72.dp, end = 72.dp, top = 470.dp).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         listOf(
-            Triple(PhosphorIcons.Fill.CarProfile, "사고가 났어요", "대피 순서와 119에 말할 위치") to Scene.ACCIDENT,
-            Triple(PhosphorIcons.Fill.Heartbeat, "갑자기 아파요", "119 안내와 가까운 응급실") to Scene.ILLNESS,
+            Pair(PhosphorIcons.Fill.CarProfile, "사고가 났어요") to Scene.ACCIDENT,
+            Pair(PhosphorIcons.Fill.Heartbeat, "갑자기 아파요") to Scene.ILLNESS,
         ).forEach { (c, target) ->
-            val (icon, title, desc) = c
+            val (icon, title) = c
             // [갑자기 아파요]는 누른 때를 남긴다: 말없이 단추만 눌렀고 혼자일 때만 운전자가 아픈 것으로 본다(검토 11/07 멋대로 판단, ride/Crash)
             Box(Modifier.weight(1f).height(420.dp).press(sq(56)) { if (target == Scene.ILLNESS) Stage.illButton() else Stage.go(target) }.frosted(sq(56), Color(0xFF2C2C30), .6f)) {
                 Column(Modifier.fillMaxSize().padding(48.dp), verticalArrangement = Arrangement.SpaceBetween) {
                     IconTile(icon, C.Red, C.Red.copy(alpha = .16f), 120, 36, 66)
                     Column {
                         Text(title, style = t(78, W800, tracking = -.035))
-                        Text(desc, style = t(32, color = C.L2), modifier = Modifier.padding(top = 12.dp))
                     }
                 }
                 Icon(PhosphorIcons.Regular.CaretRight, null, tint = C.L3, modifier = Modifier.align(Alignment.CenterEnd).padding(end = 44.dp).size(72.dp))
@@ -1894,6 +1736,10 @@ internal fun drawsListen(ui: StageUi): Boolean {
 internal fun toastTop(ui: StageUi): Dp = when (ui.scene) {
     // 급할 때 첫 화면도 위 막대로("무슨 일인가요?" 제목을 가렸다, 11/08 오류 점검)
     Scene.EMERGENCY, Scene.ACCIDENT, Scene.ILLNESS, Scene.AID -> 42.dp
+    // 설정·밥집·카페·차 정비에서 물음 띠(TopAsk, 196~308)가 떠 있으면 그 위로(띠 글과 겹쳐 둘 다 읽을 수 없었다, 11/10 검토)
+    Scene.PICK, Scene.MEMO, Scene.CARE -> if (homeAsk(ui.ask?.id)) 42.dp else 160.dp
+    // 쪽잠: 깨울 때의 큰 글('일어날 시간이에요', 약 250부터)에 듣는 중 캡슐이 닿지 않게 조금 위로
+    Scene.NAP -> 120.dp
     else -> 160.dp
 }
 
@@ -2351,8 +2197,8 @@ private fun HospitalPick(ui: StageUi, modifier: Modifier) {
                 append(when {
                     ui.demo -> "가까운 병원"
                     // '인터넷이 안 돼'는 서버가 답하지 않았을 때만(서버 결과가 비어 목록으로 왔으면 빼고)
-                    offline -> "${if (h.noNet) "인터넷이 안 돼 " else ""}앱에 넣어 둔 목록 · 국립중앙의료원 자료 · ${h.asOf?.replace('-', '.')} 기준"
-                    else -> "가까운 병원 · 국립중앙의료원 자료${h.er?.bedsAt?.let { " · ${hhmm(it.takeLast(6).take(4))} 기준" } ?: ""}"
+                    offline -> "${if (h.noNet) "인터넷이 안 돼 " else ""}앱에 넣어 둔 목록 · ${h.asOf?.replace('-', '.')} 기준"
+                    else -> "가까운 병원${h.er?.bedsAt?.let { " · ${hhmm(it.takeLast(6).take(4))} 기준" } ?: ""}"
                 })
             },
             style = t(24, W600, C.L2), maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -2444,7 +2290,6 @@ private fun AidHead(ui: StageUi) {
             AidPicture(s, Modifier.fillMaxWidth().height(500.dp))
             // 공공누리 제1유형: 출처를 자료 이름으로만 밝힌다(로고·추천처럼 보이는 문구는 쓰지 않는다). 밤에도 읽히게 L2b
             Text("그림·순서 ${ui.aid.source} · 공공누리 제1유형", style = t(22, color = C.L2b), modifier = Modifier.padding(top = 12.dp))
-            Text("문장은 2025 한국 심폐소생술 가이드라인과 맞춰 다듬음", style = t(22, color = C.L2b), modifier = Modifier.padding(top = 2.dp))
         }
         // 경련 시계는 이 글 아래에 앞 층(SeizureClockFront)이 그린다
         Column(Modifier.weight(.54f)) { AidStepText(ui, list, s) }
@@ -2524,8 +2369,8 @@ private fun SeizureClock(ui: StageUi, modifier: Modifier) {
     Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
         Text(mmss(ms), style = t(80, FontWeight.Light, if (over) C.Red else C.L1, tracking = -.03, line = 1.0).copy(fontFeatureSettings = tnum))
         Column(Modifier.weight(1f)) {
-            Text("${since}부터 · 시작 시각과 길이를 119에 말하세요", style = t(26, color = C.L2))
-            Text(if (over) "5분이 지났어요 · 아직 경련 중이면 바로 119" else "5분이 넘으면 바로 119", style = t(30, W700, if (over) C.Red else C.L1), modifier = Modifier.padding(top = 6.dp))
+            Text("${since}부터 쟀어요", style = t(26, color = C.L2))
+            if (over) Text("5분이 지났어요 · 아직 경련 중이면 바로 119", style = t(30, W700, C.Red), modifier = Modifier.padding(top = 6.dp))
         }
         Btn("다시 재기", primary = false, height = 80, size = 28, pad = 34) { Stage.aidRestart() }
     }
@@ -2536,6 +2381,16 @@ private fun AidFront(ui: StageUi) {
     val list = Guide.aid(ui.aid)
     val last = ui.step >= list.size
     val can = ui.parked || ui.demo
+    // 가슴압박 박자 소리(외부 검토 11/10): 넷째 걸음('세게, 빠르게 30번')부터 저절로 켜고 카드를 닫거나 다른 처치로 가면 끈다.
+    // 두 손이 바빠 화면을 누르지 않아도 되게 걸음을 넘겨도 이어 울린다
+    var beatOff by remember(ui.aid) { mutableStateOf(false) }
+    // 통화 중(119 상황요원의 안내가 먼저)에는 쉰다. 화면이 가려지면(차의 홈·내비로 나감) 멈추고 돌아오면 잇는다:
+    // 화면이 멈춘 동안에는 이 값이 다시 계산되지 않아 박자가 끝없이 울릴 수 있었다(11/10 검토)
+    val beat = can && ui.aid == Aid.CPR && ui.step >= 4 && !beatOff && !ui.callWait
+    LifecycleStartEffect(beat) {
+        if (beat) Beat.start()
+        onStopOrDispose { if (beat) Beat.stop() }
+    }
     Box(Modifier.fillMaxSize()) {
         if (can && ui.aid == Aid.SEIZURE) SeizureClockFront(ui)
         // 1세 이상과 돌 전 아기는 처치가 달라 위에서 바로 바꾼다
@@ -2566,6 +2421,7 @@ private fun AidFront(ui: StageUi) {
             // 빨간 한 줄은 버튼이 쓰고 남은 폭만(마지막 걸음은 버튼이 넷까지라 두 줄로 접힐 수 있다)
             Box(Modifier.weight(1f)) { RedLine(ui.aid.red) }
             if (!can) return@Row
+            if (ui.aid == Aid.CPR && ui.step >= 4) Btn(if (beatOff) "박자 소리" else "박자 소리 끄기", primary = false, height = 104, size = 30, pad = 34, icon = PhosphorIcons.Fill.Metronome) { beatOff = !beatOff }
             if (ui.step > 1) Btn("이전", primary = false, height = 104, size = 34, pad = 40, icon = PhosphorIcons.Regular.CaretLeft) { Stage.step(-1, list.size) }
             if (!last) Btn("다음", primary = true, height = 104, size = 36, pad = 48, icon = PhosphorIcons.Regular.CaretRight, iconAfter = true) { Stage.step(1, list.size) }
             else {

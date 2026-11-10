@@ -1,10 +1,15 @@
 package app.prend.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
@@ -17,11 +22,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.em
 import androidx.compose.ui.unit.sp
 import app.prend.R
-import com.kyant.backdrop.backdrops.LayerBackdrop
-import com.kyant.backdrop.drawBackdrop
-import com.kyant.backdrop.effects.blur
-import com.kyant.backdrop.effects.lens
-import com.kyant.backdrop.effects.vibrancy
 import com.kyant.capsule.ContinuousCapsule
 import com.kyant.capsule.ContinuousRoundedRectangle
 import dev.chrisbanes.haze.ExperimentalHazeApi
@@ -87,35 +87,57 @@ fun sq(r: Int): Shape = ContinuousRoundedRectangle(r.dp)
 val Pill: Shape = ContinuousCapsule
 
 /** 유리가 비출 바탕. 화면은 바탕 층(비춰지는 것)과 앞 층(유리와 글)으로 나눠 그린다 */
-class Glass(val haze: HazeState, val backdrop: LayerBackdrop)
+class Glass(val haze: HazeState)
 
 val LocalGlass = staticCompositionLocalOf<Glass?> { null }
 
-/** 머리카락 테두리. 위가 조금 더 밝아 빛이 맺힌 듯하게 */
-private val rim = Brush.verticalGradient(listOf(Color.White.copy(alpha = .15f), Color.White.copy(alpha = .06f)))
+/**
+ * 판 모서리의 빛(11/09 스모크 유리): 왼쪽 위에서 가장 밝고 가운데서 사라졌다가 오른쪽 아래에 조금 다시 맺힌다.
+ * light는 빛의 색(긴급은 빨강), strong은 빛이 센 판(긴급)
+ */
+fun rimOf(light: Color = C.L1, strong: Boolean = false): Brush = Brush.linearGradient(
+    listOf(light.copy(alpha = if (strong) .55f else .30f), Color.White.copy(alpha = .05f), Color.White.copy(alpha = .03f), light.copy(alpha = .13f)),
+    start = Offset.Zero, end = Offset.Infinite,
+)
+
+private val rim = rimOf()
+
+/** 판 위쪽의 은은한 광택 */
+fun Modifier.sheen(): Modifier = drawBehind {
+    drawRect(Brush.verticalGradient(listOf(Color.White.copy(alpha = .06f), Color.Transparent), endY = size.height * .32f))
+}
 
 /**
- * 젖빛 유리(Haze): 글을 읽는 판(위젯, 차의 한마디 카드, E 안내).
- * 시안의 재질(rgba(30,30,34,.52) + 흐림 48 + 채도 1.8)에 맞춘다. Haze에는 채도 올리기가 없어 덮는 색을 조금 옅게 해 곡 색이 비치게 한다.
+ * 왼쪽 빛줄과 그 번짐(첫 화면 큰 단추, 달리는 동안의 [긴급]): 가운데가 밝고 위아래 끝이 사라지는 가는 빛과, 판 안으로 퍼지는 옅은 빛.
+ * strong이면(긴급) 번짐을 조금 더 세게
+ */
+fun Modifier.lightBar(light: Color, strong: Boolean): Modifier = drawBehind {
+    drawRect(Brush.radialGradient(listOf(light.copy(alpha = if (strong) .26f else .14f), Color.Transparent), center = Offset(0f, size.height * .55f), radius = size.width * .75f))
+    val w = 6.dp.toPx()
+    val top = size.height * .14f
+    val h = size.height * .72f
+    drawRect(Brush.verticalGradient(listOf(Color.Transparent, light.copy(alpha = .30f), Color.Transparent), startY = top, endY = top + h), topLeft = Offset(0f, top), size = Size(w * 4, h))
+    drawRoundRect(Brush.verticalGradient(listOf(Color.Transparent, light, light, Color.Transparent), startY = top, endY = top + h), topLeft = Offset(0f, top), size = Size(w, h), cornerRadius = CornerRadius(w / 2))
+}
+
+/**
+ * 스모크 유리(Haze, 11/09 사용자가 고른 시안 5): 글을 읽는 판 모두(첫 화면 단추, 카드, 목록, E 안내).
+ * 짙은 색 유리라 뒤의 색이 흐리게 비치면서도 글이 읽힌다(빛 유리는 예뻤지만 글이 묻혔다). 위쪽 광택과 모서리 빛(rimOf)을 함께 그린다.
+ * edge로 모서리 빛의 색을 바꾼다(긴급은 rimOf(C.Red, true))
  */
 @OptIn(ExperimentalHazeApi::class)
 @Composable
-fun Modifier.frosted(shape: Shape, tint: Color = Color(0xFF1E1E22), alpha: Float = .42f): Modifier {
-    val g = LocalGlass.current ?: return clip(shape).border(1.dp, rim, shape)
+fun Modifier.frosted(shape: Shape, tint: Color = Color(0xFF0B0C10), alpha: Float = .64f, edge: Brush = rim): Modifier {
+    val g = LocalGlass.current ?: return clip(shape).background(tint.copy(alpha = .9f)).sheen().border(1.5.dp, edge, shape)
     val style = HazeStyle(backgroundColor = C.Base, tint = HazeTint(tint.copy(alpha = alpha)), blurRadius = 48.dp, noiseFactor = .04f)
     // 뒤를 줄여 담아 흐린다(Haze 기본은 원래 크기 그대로). 흐림이 48dp라 눈으로는 같고, 유리 판을 다시 흐리는 프레임(장면 전환·카드 등장)의 GPU 일이 준다(11/04 시험 27: 에뮬레이터에서 한 프레임 GPU 44ms)
-    return clip(shape).hazeEffect(g.haze, style) { inputScale = HazeInputScale.Auto }.border(1.dp, rim, shape)
+    return clip(shape).hazeEffect(g.haze, style) { inputScale = HazeInputScale.Auto }.sheen().border(1.5.dp, edge, shape)
 }
 
-/** 굴절 유리(backdrop lens): 작은 캡슐(프렌드, Emergency, 닫기). 가장자리에서 뒤가 휘고 테두리에 빛이 선다 */
+/**
+ * 위 막대의 작은 캡슐([프렌드]·[긴급]·[닫기]). 11/09부터 굴절 유리 대신 판과 같은 스모크 유리(글이 또렷하고 가볍다).
+ * edge가 있으면 그 색의 빛이 모서리에 맺히고 유리도 붉게 짙어진다([긴급]). surface는 옛 굴절 유리의 값이라 쓰지 않는다
+ */
 @Composable
-fun Modifier.liquid(shape: Shape, surface: Color = Color(0xFF1C1C1E).copy(alpha = .38f), edge: Color? = null): Modifier {
-    val g = LocalGlass.current ?: return clip(shape)
-    val m = drawBackdrop(
-        g.backdrop,
-        shape = { shape },
-        effects = { vibrancy(); blur(6.dp.toPx()); lens(14.dp.toPx(), 28.dp.toPx()) },
-        onDrawSurface = { drawRect(surface) },
-    )
-    return if (edge != null) m.border(1.dp, edge, shape) else m
-}
+fun Modifier.liquid(shape: Shape, surface: Color = Color(0xFF0B0C10), edge: Color? = null): Modifier =
+    frosted(shape, if (edge != null) Color(0xFF2A0C0F) else Color(0xFF0B0C10), if (edge != null) .74f else .64f, edge?.let { rimOf(it.copy(alpha = 1f), true) } ?: rim)

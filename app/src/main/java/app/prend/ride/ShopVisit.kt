@@ -77,7 +77,7 @@ class ShopVisit(context: Context, private val navi: Navi?, private val floor: Fl
         prefs.edit().putLong("at", wall).putInt("no", 0).apply { km()?.let { putFloat("km", it) } ?: remove("km") }.apply()
         publish()
         Prend.log("◆ 정비한 날 적음($why${if (km() != null) ", 거리 있음" else ""})")
-        Stage.toast("${md(wall)} 정비를 적어 뒀어요 · 고친 항목은 차 돌봄에서 고를 수 있어요", 4_000)
+        Stage.toast("${md(wall)} 정비를 적어 뒀어요 · 고친 항목은 차 정비에서 고를 수 있어요", 4_000)
     }
 
     /** "고친 데가 또 이상해": 90일 안이면 정비한 날과 무료 재정비 기간을 알린다 */

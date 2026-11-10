@@ -55,8 +55,6 @@ import app.prend.car.CarLink
 import app.prend.Prend
 import app.prend.music.Library
 import app.prend.music.OtherMusic
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.hazeSource
 import kotlinx.coroutines.flow.update
@@ -198,7 +196,7 @@ class PrendActivity : ComponentActivity() {
     /** 이야기에 비켜 서기를 켰을 때만 묻는 마이크 허락(말소리 여부만 판정한다) */
     private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { ok ->
         Prend.log("· 마이크 권한: ${if (ok) "허락" else "거절"}")
-        if (!ok) Stage.toast("마이크를 허락하지 않아 이야기에 비켜 서기는 쉬어요", 4_000)
+        if (!ok) Stage.toast("마이크를 허락하지 않아 대화 중엔 소리 낮추기는 쉬어요", 4_000)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -377,8 +375,7 @@ private fun App(song: Song, pos: () -> Long, acts: Acts, perm: List<String>, all
     val toast by remember { derivedStateOf { state.value.toast } }
     val level = remember { { state.value.listen?.level ?: 0f } }
     val haze = remember { HazeState() }
-    val backdrop = rememberLayerBackdrop()
-    val glass = remember(haze, backdrop) { Glass(haze, backdrop) }
+    val glass = remember(haze) { Glass(haze) }
     val hold = remember { HoldState() }
     // 다른 화면(차량 제어 등)이 PREND를 덮으면 누르던 고리를 지운다
     LifecycleEventEffect(Lifecycle.Event.ON_STOP) { hold.at = null }
@@ -389,6 +386,7 @@ private fun App(song: Song, pos: () -> Long, acts: Acts, perm: List<String>, all
         when {
             u.scene == Scene.MEMO && u.about -> Stage.openAbout(false)
             u.scene == Scene.MEMO && u.memoMore -> Stage.openMemoMore(false)
+            u.scene == Scene.MEMO && u.insurerPick -> Stage.openInsurer(false)
             u.scene == Scene.CARE && u.care.shops != null -> Stage.care("back")
             u.scene == Scene.CARE && u.care.open != null -> Stage.care("list")
             else -> Stage.go(Scene.HOME)
@@ -402,7 +400,7 @@ private fun App(song: Song, pos: () -> Long, acts: Acts, perm: List<String>, all
             // 얼굴(장면, 첫 화면이면 달리는 중인가)이 바뀔 때만 섞는다: P→D면 첫 화면이 달리는 동안의 판으로 0.45초에 바뀐다
             val face = ui.face
             last[face] = ui
-            Box(Modifier.fillMaxSize().hazeSource(haze).layerBackdrop(backdrop)) {
+            Box(Modifier.fillMaxSize().hazeSource(haze)) {
                 // 바탕 색은 바탕이 달라질 때만 섞는다(첫 화면·같이 고르기·기억 사이는 그대로 두고 글만 바뀐다)
                 Crossfade(face.ground, animationSpec = tween(450), label = "ground") { SceneGround(it) }
                 Crossfade(face, animationSpec = tween(450), label = "back") { SceneBack(it.scene, if (it == face) ui else last[it] ?: ui, song, acts, it.driving) }

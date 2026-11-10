@@ -114,11 +114,10 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.9.2")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.6")
 
-    // 화면 질감(R17 B안, 10/25 섞기로 정함): 읽는 판은 젖빛 유리 Haze, 작은 캡슐은 굴절 유리 backdrop,
+    // 화면 질감: 읽는 판과 캡슐은 스모크 유리(Haze, 11/09부터 굴절 유리 backdrop은 쓰지 않는다),
     // G2 연속 모서리 capsule, 아이콘 Phosphor(MIT)
     implementation("dev.chrisbanes.haze:haze:1.7.1")
     implementation("dev.chrisbanes.haze:haze-materials:1.7.1")
-    implementation("io.github.kyant0:backdrop:1.0.0")
     implementation("io.github.kyant0:capsule:2.1.1")
     implementation("com.adamglin:phosphor-icon:1.0.0")
 }

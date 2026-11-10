@@ -79,7 +79,7 @@ class SlowTalk(context: Context, private val speaker: Speaker?, private val floo
             publish()
             Prend.log("◆ 듣고 보기: 넉넉히 기다리기 켬(대답 창 ${LONG_WAIT_MS / 1000}초)")
             // 바뀐 것을 한 번 알린다(검토 11/07 멋대로 판단: 말없이 바뀌어 물을 때마다 음악이 8초씩 멈추는 까닭을 알 길이 없었다)
-            Stage.toast("다음부턴 대답을 조금 더 기다릴게요 · 기억 화면에서 바꿀 수 있어요", 4_000)
+            Stage.toast("다음부턴 대답을 조금 더 기다릴게요 · 설정에서 바꿀 수 있어요", 4_000)
         }
     }
 
@@ -110,7 +110,7 @@ class SlowTalk(context: Context, private val speaker: Speaker?, private val floo
         pending = false
         cardAt = now()
         floor?.shown("천천히 말하기")
-        Stage.ask(Ask("SLOW", "앞으로 천천히 말할게요", "다시 말해 달라고 하신 적이 있어서요 · 기억 화면에서 바꿀 수 있어요", "좋아요", "원래대로"))
+        Stage.ask(Ask("SLOW", "앞으로 천천히 말할게요", "다시 말해 달라고 하신 적이 있어서요 · 설정에서 바꿀 수 있어요", "좋아요", "원래대로"))
         Prend.log("◆ 천천히 말하기 카드(카드만)")
     }
 

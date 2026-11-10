@@ -19,7 +19,7 @@ PREND가 함께 쓰는 오픈소스와 라이선스
 - Jetpack Compose, AndroidX Activity·Lifecycle (androidx.*)
 - Media3 1.4.1 (androidx.media3:media3-session, media3-exoplayer)
 - Haze 1.7.1 (dev.chrisbanes.haze:haze, haze-materials)
-- Backdrop 1.0.0, Capsule 2.1.1 (io.github.kyant0)
+- Capsule 2.1.1 (io.github.kyant0)
 - Kotlin 표준 라이브러리, kotlinx.coroutines (org.jetbrains.kotlin, org.jetbrains.kotlinx)
 
 오픈소스가 아닌 것
