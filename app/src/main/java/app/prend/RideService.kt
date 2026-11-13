@@ -104,6 +104,7 @@ class RideService : Service() {
     private var after: AfterCrash? = null
     private var baby: Baby? = null
     private var bump: Bump? = null
+    private var jolt: app.prend.car.Jolt? = null
     private var nap: Nap? = null
     private var novice: Novice? = null
     private var coach: Coach? = null
@@ -541,7 +542,7 @@ class RideService : Service() {
                 cmd == "call_on" -> crash?.fakeCall(true)
                 cmd == "call_off" -> crash?.fakeCall(false)
                 // 접촉 사고 물음을 지금(급제동·비상등 없이), 가족 정보: 지금 묻기·지우기(다음 운행에 처음처럼), 사고 메모를 하루 전으로
-                cmd == "bump" -> care?.queueBump()
+                cmd == "bump" -> { Stage.ui.value = Stage.ui.value.copy(bumpJolt = false); care?.queueBump() }
                 cmd == "kids_ask" -> care?.queueKids()
                 cmd == "kids_forget" -> baby?.forget()
                 // 위치 보내기(사용자 결정 11/06): 처음 알림 카드를 지금 줄에(세워 둔 채 문이 닫히고 10초 뒤 뜬다), 처음 설치한 상태로, 켜고 끄기
@@ -1186,6 +1187,7 @@ class RideService : Service() {
         if (!old.airbag && now.airbag) crash?.airbag()
         crash?.onCar(old, now)
         bump?.onCar(old, now)
+        if (old.parked != now.parked) jolt?.watch(!now.parked)
         nap?.onCar(old, now)
         coach?.onCar(old, now)
         carCare?.onCar(old, now)
@@ -1393,10 +1395,14 @@ class RideService : Service() {
         // 사고 메모의 날씨는 시험 기온(temp_)도 따른다(화면의 기온과 같은 값)
         crash = Crash(this, ::onHighway, navi, aft, ::place, { speaker?.slow == true }) { CarLink.state.let { s -> testTemp?.let { s.copy(outsideC = it) } ?: s } }
         // 혹시 사고를 물을 때는 에어백처럼 PREND 화면을 앞으로 띄운다(11/05: 내비 위 흰 배너만으로는 놓치기 쉽다). 막히면(BAL_BLOCK) 배너가 그대로 있다
-        bump = Bump({ CarLink.hubOrNull?.hazardReadable == true }) { care?.queueBump(); openScreen("혹시 사고") }
+        bump = Bump({ CarLink.hubOrNull?.hazardReadable == true }) { jolted -> Stage.ui.value = Stage.ui.value.copy(bumpJolt = jolted); care?.queueBump(); openScreen("혹시 사고") }
+        // 충격 읽기(11/13): 가속도 센서가 있는 차에서만. P가 아닐 때만 켠다
+        jolt = app.prend.car.Jolt(this) { g -> bump?.onJolt(g) }
+        Prend.log("· 충격 읽기: ${if (jolt?.readable == true) "가속도 센서 있음" else "가속도 센서 없음(급제동으로만 살핌)"}")
         Stage.onInsurer = { aft.insurer(it) }
         Stage.onNoteDone = { aft.done() }
         detachCar = CarLink.attach(this, ::onCar)
+        jolt?.watch(!CarLink.state.parked)
         clock?.onGear(CarLink.state.gear)
         // 시험 명령(adb)은 디버그 빌드에서만 받는다. 출시 빌드에서는 다른 앱이 에어백·마이크 같은 명령을 보내지 못한다
         if (BuildConfig.DEMO) registerReceiver(commands, IntentFilter("app.prend.RIDE"), Context.RECEIVER_EXPORTED)
@@ -1434,6 +1440,7 @@ class RideService : Service() {
         ui.removeCallbacksAndMessages(null)
         clock?.save()
         detachCar?.invoke()
+        jolt?.watch(false)
         // 달리는 동안의 핸들 읽기는 이 서비스가 켰다: 음악 서비스가 차 연결을 쥐고 있어도 멈춘다(떼어 낸 뒤라 onCar가 다시 켜지 않는다)
         CarLink.hubOrNull?.steerWhileDriving(false)
         timing.release()

@@ -388,6 +388,8 @@ private fun App(song: Song, pos: () -> Long, acts: Acts, perm: List<String>, all
             u.scene == Scene.MEMO && u.memoMore -> Stage.openMemoMore(false)
             u.scene == Scene.MEMO && u.insurerPick -> Stage.openInsurer(false)
             u.scene == Scene.CARE && u.care.shops != null -> Stage.care("back")
+            u.scene == Scene.CARE && u.care.lamp != null -> Stage.care("lamps")
+            u.scene == Scene.CARE && u.care.lamps -> Stage.care("list")
             u.scene == Scene.CARE && u.care.open != null -> Stage.care("list")
             else -> Stage.go(Scene.HOME)
         }

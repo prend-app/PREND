@@ -1,6 +1,7 @@
 package app.prend.ui
 
 import app.prend.ride.CareBook
+import app.prend.ride.LampBook
 import app.prend.ride.SlowTalk
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
@@ -499,7 +500,7 @@ private fun BigAsk(ui: StageUi, ask: Ask) {
                 else -> Text(ask.text, style = t(34, W500, C.L2), modifier = Modifier.padding(top = 24.dp))
             }
             // 왜 묻는지: 차가 알아챈 것을 차례로(ride/Bump. 비상등을 읽는 차는 그 사이에 비상등도 보지만, 셋은 어느 차에서나 맞다). 외부 검토 11/10
-            if (ask.id == "BUMP" && !evac) SignalChain(listOf(PhosphorIcons.Duotone.Gauge to "급제동", PhosphorIcons.Duotone.HandPalm to "멈춤", PhosphorIcons.Duotone.DoorOpen to "운전석 문 열림"))
+            if (ask.id == "BUMP" && !evac) SignalChain(listOf(if (ui.bumpJolt) PhosphorIcons.Duotone.Warning to "충격" else PhosphorIcons.Duotone.Gauge to "급제동", PhosphorIcons.Duotone.HandPalm to "멈춤", PhosphorIcons.Duotone.DoorOpen to "운전석 문 열림"))
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(18.dp)) {
             // 사고 쪽 대답은 빨간 단추(한 화면에 하나). 고속도로 정차의 [고장 났어요]는 흰 단추
@@ -927,11 +928,24 @@ private fun CareHead(ui: StageUi) {
     val c = ui.care
     val page = c.open?.let { CareBook.page(it) }
     val shops = c.shops
+    val lamp = c.lamp?.let { LampBook.lamp(it) }
     Column(Modifier.padding(start = 72.dp, end = 72.dp, top = 196.dp)) {
         when {
             shops != null -> {
                 Text("가까운 블루핸즈", style = t(84, W700, tracking = -.035))
                 Text("${shops.area ?: "지금 위치"} 근처 · 현대차 공식 정비 협력점이에요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
+            }
+            // 경고등이 켜졌을 때(ride/LampBook, 11/13)
+            lamp != null -> {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+                    Text("${lamp.label} 경고등", style = t(84, W700, tracking = -.035))
+                    LampTone(lamp.tone, 36)
+                }
+                Text("계기판에서는 ${lamp.look} 모양이에요", style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
+            }
+            c.lamps -> {
+                Text("경고등이 켜졌을 때", style = t(84, W700, tracking = -.035))
+                Text(LampBook.HINT, style = t(32, W500, C.L2), modifier = Modifier.padding(top = 14.dp))
             }
             page != null -> {
                 val row = c.rows.firstOrNull { it.key == page.key }
@@ -964,12 +978,87 @@ private fun CareFront(ui: StageUi) {
     val c = ui.care
     val page = c.open?.let { CareBook.page(it) }
     val shops = c.shops
+    val lamp = c.lamp?.let { LampBook.lamp(it) }
     Box(Modifier.fillMaxSize()) {
         when {
             shops != null -> CareShops(shops)
+            lamp != null -> LampPage(lamp)
+            c.lamps -> LampList(c)
             page != null -> CarePage(page, c.km)
             else -> CareList(c)
         }
+    }
+}
+
+// ── 경고등이 켜졌을 때(ride/LampBook, 11/13): 앱은 어떤 경고등인지 읽을 수 없어, 같은 모양을 골라 뜻과 할 일을 본다 ──
+
+private fun toneColor(tone: LampBook.Tone) = if (tone == LampBook.Tone.RED) C.Red else C.Amber
+
+@Composable
+private fun LampTone(tone: LampBook.Tone, size: Int) {
+    Text(if (tone == LampBook.Tone.RED) "빨간색" else "노란색", style = t(size, W600, toneColor(tone)), maxLines = 1)
+}
+
+@Composable
+private fun BoxScope.LampList(c: CareUi) {
+    // 차 정비 목록과 같은 자리·같은 칸(두 줄, 한 줄에 다섯)
+    Column(
+        Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 200.dp).fillMaxWidth().height(560.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+    ) {
+        LampBook.lamps(c.electric).chunked(5).forEach { line ->
+            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(20.dp)) {
+                line.forEach { l -> LampCell(l, Modifier.weight(1f).fillMaxHeight()) { Stage.care("lamp", l.key) } }
+                repeat(5 - line.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+    Row(
+        Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 56.dp).fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(LampBook.SOURCE, style = t(24, color = C.L2b), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Btn("차 정비 목록", primary = false, height = 104, size = 34, pad = 40, icon = PhosphorIcons.Regular.List) { Stage.care("list") }
+        Btn("가까운 블루핸즈", primary = false, height = 104, size = 34, pad = 44, icon = PhosphorIcons.Regular.Wrench) { Stage.care("shops") }
+    }
+}
+
+@Composable
+private fun LampCell(l: LampBook.Lamp, modifier: Modifier, onClick: () -> Unit) {
+    Column(
+        modifier.press(sq(44), onClick = onClick).frosted(sq(44)).padding(horizontal = 32.dp, vertical = 26.dp),
+        verticalArrangement = Arrangement.SpaceBetween,
+    ) {
+        Column {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Box(Modifier.size(18.dp).background(toneColor(l.tone), CircleShape))
+                Text(l.label, style = t(36, W700, tracking = -.03), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            Text(l.look, style = t(24, W500, C.L2, line = 1.25), maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 10.dp))
+        }
+        LampTone(l.tone, 28)
+    }
+}
+
+/** 한 경고등: 언제 켜지나 · 이렇게 하세요 · 알아 둘 것, 그리고 [경고등 목록]·[가까운 블루핸즈] */
+@Composable
+private fun BoxScope.LampPage(l: LampBook.Lamp) {
+    Row(
+        Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 200.dp).fillMaxWidth().height(620.dp),
+        horizontalArrangement = Arrangement.spacedBy(24.dp),
+    ) {
+        val mod = Modifier.weight(1f).fillMaxHeight()
+        CareBox("언제 켜지나요", toneColor(l.tone), l.whenOn, mod)
+        CareBox("이렇게 하세요", C.Sky, l.todo, mod)
+        CareBox("알아 둘 것", C.Lilac, l.more + "차마다 모양과 색이 조금 달라요", mod)
+    }
+    Row(
+        Modifier.align(Alignment.BottomStart).padding(start = 72.dp, end = 72.dp, bottom = 56.dp).fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text(LampBook.SOURCE, style = t(24, color = C.L2b), modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Btn("경고등 목록", primary = false, height = 104, size = 34, pad = 40, icon = PhosphorIcons.Regular.List) { Stage.care("lamps") }
+        Btn("가까운 블루핸즈", primary = true, height = 104, size = 34, pad = 44, icon = PhosphorIcons.Regular.Wrench) { Stage.care("shops") }
     }
 }
 
@@ -992,6 +1081,8 @@ private fun BoxScope.CareList(c: CareUi) {
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Text(CareBook.FOOT, style = t(24, color = C.L2b), modifier = Modifier.weight(1f))
+        // 경고등이 켜졌을 때(11/13): 말("경고등 켜졌어")로도, 여기서도 연다
+        Btn("경고등이 켜졌을 때", primary = false, height = 104, size = 34, pad = 40, icon = PhosphorIcons.Fill.Warning) { Stage.care("lamps") }
         Btn("가까운 블루핸즈", primary = false, height = 104, size = 34, pad = 44, icon = PhosphorIcons.Regular.Wrench) { Stage.care("shops") }
     }
 }

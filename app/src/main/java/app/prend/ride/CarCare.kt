@@ -67,11 +67,19 @@ class CarCare(context: Context, private val hub: () -> CarHub?, private val navi
             "open" -> {
                 // 카드가 떠 있는 채로 사람이 다른 항목을 열면 카드를 거둔다(다음 틱에 카드 항목으로 바뀌지 않게)
                 if (Stage.ui.value.ask?.id == "CARE") Stage.ask(null)
-                set { it.copy(open = arg.ifBlank { null }?.takeIf { k -> CareBook.page(k) != null }, shops = null) }
+                set { it.copy(open = arg.ifBlank { null }?.takeIf { k -> CareBook.page(k) != null }, shops = null, lamps = false, lamp = null) }
                 read { refresh() }
             }
-            "item" -> set { it.copy(open = arg, shops = null) }
-            "list" -> set { it.copy(open = null, shops = null) }
+            "item" -> set { it.copy(open = arg, shops = null, lamps = false, lamp = null) }
+            "list" -> set { it.copy(open = null, shops = null, lamps = false, lamp = null) }
+            // 경고등이 켜졌을 때(ride/LampBook, 11/13): 목록을 열고, 하나를 골라 뜻과 할 일을 본다
+            "lamps" -> {
+                if (Stage.ui.value.ask?.id == "CARE") Stage.ask(null)
+                set { it.copy(open = null, shops = null, lamps = true, lamp = null) }
+                Prend.log("· 차 돌봄: 경고등 뜻 목록")
+                read { refresh() }
+            }
+            "lamp" -> { set { it.copy(open = null, shops = null, lamps = true, lamp = arg.takeIf { k -> LampBook.lamp(k) != null }) }; Prend.log("· 차 돌봄: 경고등 뜻(${arg})") }
             "back" -> set { it.copy(shops = null) }
             "shops" -> shops()
             "choose" -> arg.toIntOrNull()?.let { n -> set { c -> c.copy(shops = c.shops?.copy(chosen = n)) } }

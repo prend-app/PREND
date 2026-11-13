@@ -14,6 +14,7 @@
 //   read:WORD          주행 화면에서 그 말 근처 글을 적는다(예: read:AIR MODE)
 //   tap:x:y            앱 화면의 그 자리를 누른다(앱 영역 1680×1210 기준, 에뮬레이터 화면에서는 왼쪽 계기판만큼 옮겨 누른다)
 //   until:글:초        앱 기록에 그 글이 새로 찍힐 때까지 기다린다(기본 20초까지). 장면이 앱의 실제 판단을 따라가게
+//   jolt:1.5           충격(g): 가상 차의 가속도 센서 값을 잠깐 옆으로 튀게 한다(접촉 사고)
 //   mark:글            지금 시각을 적는다(시연 영상의 자막 시각표용)
 //   shot:이름          에뮬레이터 화면을 VCSHOTS 폴더(없으면 tools/vcshots)에 찍어 둔다
 // 좌표는 1600×1000 화면 기준(drive.js와 같음). 문·기능 카드는 두 번째 탭의 Emulation Controls에서 누른다.
@@ -115,6 +116,16 @@ const GEAR = { P: 1439, R: 1473, N: 1507, D: 1540 };
       let ok = false;
       while (Date.now() < end) { await wait(400); if (count() > base) { ok = true; break; } }
       await log(`${ok ? '기다림 끝' : '기다렸지만 안 찍힘'}: ${text}`);
+    }
+    else if (verb === 'jolt') {
+      // 충격: 가상 차의 가속도 센서 값을 1.2초 동안 옆으로(0.4초까지는 가상 차가 값을 전하지 못했다) 튀게 했다가 되돌린다(앱은 이 센서로 충격을 읽는다, car/Jolt). 크기는 g(기본 1.5)
+      const g = +arg || 1.5;
+      const m = execFileSync(ADB, ['emu', 'sensor', 'get', 'acceleration-uncalibrated']).toString().match(/=\s*(-?[\d.]+):(-?[\d.]+):(-?[\d.]+)/);
+      const b = m && Math.abs(+m[1]) < 3 ? m.slice(1).map(Number) : [0, 9.776, 0.812];
+      execFileSync(ADB, ['emu', 'sensor', 'set', 'acceleration-uncalibrated', `${(b[0] + g * 9.81).toFixed(2)}:${b[1]}:${b[2]}`], { stdio: 'ignore' });
+      await wait(1200);
+      execFileSync(ADB, ['emu', 'sensor', 'set', 'acceleration-uncalibrated', b.join(':')], { stdio: 'ignore' });
+      await log(`충격 ${g}g`);
     }
     else if (verb === 'click') { const [x, y] = rest.map(Number); await drive.mouse.click(x, y); await wait(600); await log(`누름 ${x},${y}`); }
     else if (verb === 'read') { const t = await drive.evaluate((w) => { const s = document.body.innerText; const i = s.indexOf(w); return i < 0 ? '(없음)' : s.slice(i, i + 60).split('\n').join(' / '); }, arg); console.log(`  읽음: ${t}`); }

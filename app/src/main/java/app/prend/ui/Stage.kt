@@ -44,8 +44,14 @@ data class Pick(val kind: String = "food", val area: String? = null, val loading
 /** 차 돌봄 한 줄(ride/CarCare): key는 ride/CareBook의 항목, state는 지금 상태 한 줄, due는 갈 때(호박색), soon은 곧, diy는 직접 할 수 있음 */
 data class CareRow(val key: String, val label: String, val state: String, val due: Boolean = false, val soon: Boolean = false, val diy: Boolean = false)
 
-/** 차 돌봄 화면. km는 누적 주행거리(모르면 null), open은 펼친 항목, shops는 가까운 블루핸즈(같이 고르기의 Pick 꼴, kind "service") */
-data class CareUi(val km: Int? = null, val electric: Boolean? = null, val rows: List<CareRow> = emptyList(), val open: String? = null, val shops: Pick? = null, val visit: String? = null)
+/**
+ * 차 돌봄 화면. km는 누적 주행거리(모르면 null), open은 펼친 항목, shops는 가까운 블루핸즈(같이 고르기의 Pick 꼴, kind "service").
+ * lamps는 '경고등이 켜졌을 때' 목록을 보는 중, lamp는 그 가운데 펼친 경고등(ride/LampBook, 11/13)
+ */
+data class CareUi(
+    val km: Int? = null, val electric: Boolean? = null, val rows: List<CareRow> = emptyList(), val open: String? = null, val shops: Pick? = null, val visit: String? = null,
+    val lamps: Boolean = false, val lamp: String? = null,
+)
 
 /** 급할 때 찾은 병원(국립중앙의료원). 응급실은 남은 병상(음수면 붐빔)과 갱신 시각, 달빛어린이병원은 오늘 진료 시간(HHmm) */
 data class Hospital(
@@ -140,6 +146,8 @@ data class StageUi(
     val kids: Boolean? = null,
     /** 혹시 사고에 대답이 없었다: 10분 동안(세워 둔 채) 배너에 "혹시 사고였나요?" 한 줄을 목소리 없이 둔다 */
     val bumpHint: Boolean = false,
+    /** 이번 혹시 사고 물음은 충격을 읽고 시작했다(car/Jolt). 물음 카드의 '차가 알아챈 것' 첫 칸이 급제동 대신 충격 */
+    val bumpJolt: Boolean = false,
     /** 초보 운전: 달리는 동안 말을 줄이고, 비·영하에 섰을 때 한마디 */
     val novice: Boolean = false,
     val listen: Listen? = null,
@@ -624,6 +632,16 @@ object Stage {
     }
 
     fun care(what: String, arg: String = "") { onCare?.invoke(what, arg) }
+
+    /**
+     * "경고등 켜졌어": 경고등 뜻 목록을 연다(ride/LampBook). 앱은 어떤 경고등이 켜졌는지 읽을 수 없어 운전자가 같은 모양을 고른다.
+     * 긴 글이라 세워 둔 동안만 보이고, 달리는 중에는 세우라는 한 줄만 띄운다
+     */
+    fun openLamps() {
+        if (!ui.value.parked) { toast("빨간 경고등이면 안전한 곳에 세우세요 · 세우면 무슨 경고등인지 보여 드릴게요", 6_000); return }
+        go(Scene.CARE)
+        onCare?.invoke("lamps", "") ?: toast("경고등 뜻은 운행 서비스가 있어야 해요")
+    }
 
     /** 묻는 말 줄 밖의 카드 대답 받기(id → 대답). ride/AlleyDest가 붙인다 */
     val sideAsks = java.util.concurrent.ConcurrentHashMap<String, (Boolean) -> Unit>()
@@ -1131,6 +1149,8 @@ object Stage {
         "넣었나", "넣었지", "?", "안갈았", "못갈았", "안바꿨", "못바꿨", "안넣었", "못넣었", "안했", "못했", "아직")
     /** 항목 없이 정비 일반("정비 어디서 해?"·"소모품 언제 갈아?") */
     private val CARE_ANY = listOf("차돌봄", "정비", "소모품", "블루핸즈", "카센터", "공업사", "고장났", "고장난", "수리비", "교환주기", "교체주기", "점검받")
+    /** 경고등 뜻을 여는 말(빈칸 지운 말에서 찾는다). '비상등'은 경고등이 아니라 넣지 않는다 */
+    private val LAMP_WORDS = listOf("경고등", "경고불", "경고표시", "계기판에불", "계기판불", "계기판에뭐가")
     /** 갈았다는 말("와이퍼 갈았어"·"엔진오일 교환했어"). 채웠다·넣었다는 워셔액만(careDone) */
     private val CARE_DONE = listOf("갈았", "교체했", "교환했", "바꿨")
     /** 빗소리("비 소리"로 받아 적을 때도) */
@@ -1839,6 +1859,8 @@ object Stage {
             // 차 돌봄(정비): "와이퍼 갈아야 해?"·"엔진오일 얼마야?"·"블루핸즈 어디야". "와이퍼 갈았어"는 간 것을 적는다("언제 갈았지?"·"아직 안 갈았어"는 적지 않고 연다).
             // 김서림·아플 때·공기·열선 같은 급한 요청 뒤에 둔다("와이퍼 켜도 김 서려서 안 보여"는 성에 제거)
             // 정비소에 간 날(11/02): "고친 데가 또 이상해"는 정비한 날·무료 재정비 기간, "오늘 정비했어"는 오늘 날짜로 적기(항목 낱말이 있으면 항목으로)
+            // 경고등 뜻(11/13): "경고등 켜졌어"·"계기판에 불 들어왔어". 항목 낱말(오일·타이어)이 함께 있어도 경고등 목록이 먼저다
+            LAMP_WORDS.any { it in s } -> "lamp"
             SHOP_AGAIN.any { it in s } && listOf("또", "다시", "이상", "고장", "안돼", "그대로").any { it in s } -> "shop_again"
             careKey(s) == null && SHOP_DONE.any { it in s } -> "shop_done"
             careKey(s)?.let { careDone(it, s) } == true -> "care_done"
@@ -1989,6 +2011,8 @@ object Stage {
             "again" -> onAgain?.invoke(null) ?: toast("방금 드린 말이 없어요", 2_000)
             // 급할 때 화면에서는 차 돌봄으로 넘어가지 않는다(사고·아플 때 안내가 끊기지 않게)
             "care", "care_done" -> if (ui.value.scene.isE) toast("다시 한 번 말씀해 주세요") else if (intent == "care") openCare(careKey(s).orEmpty()) else care("done_said", careKey(s).orEmpty())
+            // 경고등 뜻(11/13): 급할 때 화면에서는 넘어가지 않는다
+            "lamp" -> if (ui.value.scene.isE) toast("다시 한 번 말씀해 주세요") else openLamps()
             "park", "fuel", "toll", "fog" -> onCoach?.invoke(intent) ?: toast("다시 한 번 말씀해 주세요")
             "novice_on" -> novice(true)
             "shop_done", "shop_again" -> onShop?.invoke(if (intent == "shop_done") "done" else "again") ?: toast("다시 한 번 말씀해 주세요")
